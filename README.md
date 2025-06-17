@@ -1,5 +1,5 @@
 # This creates the file with content
-@"
+
 # 🚀 TeleCRM - AI-Powered Call Management System
 
 A modern SIM-based TeleCRM system with AI-powered transcription and sentiment analysis.
@@ -93,27 +93,3 @@ MIT License
 Arsalan - GitHub
 
 Built with ❤️ for modern businesses
-"@ | Out-File -FilePath "README.md" -Encoding UTF8
-
-### **Method 2: Using Notepad (Simple)**
-
-1. **Open Notepad**
-2. **Copy all the content** from the artifact I provided earlier
-3. **Save as**: `README.md` (make sure to change "Save as type" to "All Files")
-4. **Save in**: `C:\Users\Arsalan\Desktop\telecrm-backend\`
-
-### **Method 3: Using VS Code (If you have it)**
-
-1. **Open VS Code**
-2. **File → New File**
-3. **Paste the content**
-4. **Save as**: `README.md` in your project folder
-
-### **Method 4: PowerShell Simple Command**
-
-```bash
-# Create empty file first
-New-Item -Path "README.md" -ItemType "file"
-
-# Then edit with notepad
-notepad README.md
