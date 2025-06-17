@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeleCRM Test Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(45deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        .section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(52, 152, 219, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .contacts-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .contact-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #27ae60;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+        
+        .contact-item:hover {
+            transform: translateX(5px);
+        }
+        
+        .contact-name {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+        
+        .contact-details {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-top: 8px;
+        }
+        
+        .status-new { background: #e3f2fd; color: #1976d2; }
+        .status-contacted { background: #fff3e0; color: #f57c00; }
+        .status-interested { background: #e8f5e8; color: #388e3c; }
+        .status-converted { background: #e8f5e8; color: #2e7d32; }
+        .status-not_interested { background: #ffebee; color: #d32f2f; }
+        
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📞 TeleCRM Test Interface</h1>
+            <p>Test your backend API with this beautiful interface</p>
+        </div>
+        
+        <div class="content">
+            <!-- Add Contact Section -->
+            <div class="section">
+                <h2>➕ Add New Contact</h2>
+                <form id="contactForm">
+                    <div class="form-group">
+                        <label for="name">Name *</label>
+                        <input type="text" id="name" name="name" required placeholder="Enter contact name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="phone">Phone *</label>
+                        <input type="tel" id="phone" name="phone" required placeholder="Enter phone number">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" placeholder="Enter email address">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="status">Status</label>
+                        <select id="status" name="status">
+                            <option value="new">New</option>
+                            <option value="contacted">Contacted</option>
+                            <option value="interested">Interested</option>
+                            <option value="converted">Converted</option>
+                            <option value="not_interested">Not Interested</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="assignedAgent">Assigned Agent</label>
+                        <input type="text" id="assignedAgent" name="assignedAgent" placeholder="Enter agent name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes" name="notes" rows="3" placeholder="Enter any notes..."></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn">Add Contact</button>
+                </form>
+                
+                <div id="message"></div>
+            </div>
+            
+            <!-- View Contacts Section -->
+            <div class="section">
+                <h2>👥 All Contacts</h2>
+                
+                <div class="stats" id="stats">
+                    <div class="stat-item">
+                        <div class="stat-number" id="totalContacts">0</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="newContacts">0</div>
+                        <div class="stat-label">New</div>
+                    </div>
+                </div>
+                
+                <button onclick="loadContacts()" class="btn" style="margin-bottom: 20px;">🔄 Refresh Contacts</button>
+                
+                <div class="contacts-list" id="contactsList">
+                    <p style="text-align: center; color: #7f8c8d; padding: 20px;">Click "Refresh Contacts" to load contacts</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api';
+        
+        // Add contact form handler
+        document.getElementById('contactForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const contactData = Object.fromEntries(formData.entries());
+            
+            // Remove empty fields
+            Object.keys(contactData).forEach(key => {
+                if (contactData[key] === '') {
+                    delete contactData[key];
+                }
+            });
+            
+            try {
+                const response = await fetch(`${API_BASE}/contacts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(contactData)
+                });
+                
+                if (response.ok) {
+                    const newContact = await response.json();
+                    showMessage('Contact added successfully!', 'success');
+                    e.target.reset();
+                    loadContacts(); // Refresh the contacts list
+                } else {
+                    const error = await response.json();
+                    showMessage(`Error: ${error.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Network error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Load and display contacts
+        async function loadContacts() {
+            try {
+                const response = await fetch(`${API_BASE}/contacts`);
+                const contacts = await response.json();
+                
+                displayContacts(contacts);
+                updateStats(contacts);
+            } catch (error) {
+                showMessage(`Error loading contacts: ${error.message}`, 'error');
+            }
+        }
+        
+        // Display contacts in the list
+        function displayContacts(contacts) {
+            const contactsList = document.getElementById('contactsList');
+            
+            if (contacts.length === 0) {
+                contactsList.innerHTML = '<p style="text-align: center; color: #7f8c8d; padding: 20px;">No contacts found. Add your first contact!</p>';
+                return;
+            }
+            
+            contactsList.innerHTML = contacts.map(contact => `
+                <div class="contact-item">
+                    <div class="contact-name">${contact.name}</div>
+                    <div class="contact-details">
+                        📞 ${contact.phone}
+                        ${contact.email ? `<br>📧 ${contact.email}` : ''}
+                        ${contact.assignedAgent ? `<br>👤 Agent: ${contact.assignedAgent}` : ''}
+                        ${contact.notes ? `<br>📝 ${contact.notes}` : ''}
+                        <br><small>Added: ${new Date(contact.createdAt).toLocaleDateString()}</small>
+                    </div>
+                    <span class="status-badge status-${contact.status}">${contact.status.replace('_', ' ')}</span>
+                </div>
+            `).join('');
+        }
+        
+        // Update statistics
+        function updateStats(contacts) {
+            document.getElementById('totalContacts').textContent = contacts.length;
+            document.getElementById('newContacts').textContent = contacts.filter(c => c.status === 'new').length;
+        }
+        
+        // Show message
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="message ${type}">${text}</div>`;
+            
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+        
+        // Load contacts on page load
+        document.addEventListener('DOMContentLoaded', loadContacts);
+    </script>
+</body>
+</html>
