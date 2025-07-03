@@ -12,11 +12,11 @@ const server = app.listen(PORT, () => {
     console.log(`🔗 Visit: http://localhost:${PORT}/`);
     
     // Keep logging to see when it stops
-    let counter = 0;
-    const keepAlive = setInterval(() => {
-        counter++;
-        console.log(`⏰ Server alive check #${counter} - ${new Date().toLocaleTimeString()}`);
-    }, 2000); // Every 2 seconds
+   // let counter = 0;
+    //const keepAlive = setInterval(() => {
+   //     counter++;
+   //     console.log(`⏰ Server alive check #${counter} - ${new Date().toLocaleTimeString()}`);
+   // }, 2000); // Every 2 seconds
 });
 
 // Log when server closes
@@ -42,4 +42,6 @@ process.on('SIGTERM', () => {
     process.exit(0);
 });
 
-console.log("✅ server.js setup complete");
+console.log("✅ server.js setup complete");module.exports = app;
+
+module.exports = app;
