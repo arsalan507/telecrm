@@ -3,11 +3,13 @@ console.log("🛑 callLogs.js is LOADING...");
 const express = require('express');
 const router = express.Router();
 const CallLog = require('../models/CallLog');
+const User = require('../models/User');
+const { auth, checkCallLimit, checkPermission, optionalAuth } = require('../middleware/auth');
 
-console.log("✅ callLogs.js setup complete");
+console.log("✅ callLogs.js setup complete with authentication");
 
 // ==========================================
-// GET /api/call-logs/test - Test endpoint
+// GET /api/call-logs/test - Test endpoint (PUBLIC)
 // ==========================================
 router.get('/test', (req, res) => {
     console.log("🎯 callLogs router hit!");
@@ -17,24 +19,482 @@ router.get('/test', (req, res) => {
     console.log("✅ /test route handler executed!");
     res.json({ 
         success: true, 
-        message: 'Call logs API working',
+        message: 'CallTracker Pro Call Logs API working!',
         timestamp: new Date().toISOString(),
+        version: '2.0.0',
+        features: [
+            'User Authentication',
+            'Organization Isolation', 
+            'Call Limits Enforcement',
+            'Role-based Access Control',
+            'Real-time Analytics',
+            'Bulk Import/Export',
+            'Advanced Search'
+        ],
         endpoints: [
-            'GET /api/call-logs/test',
-            'POST /api/call-logs',
-            'GET /api/call-logs',
-            'GET /api/call-logs/:id',
-            'PUT /api/call-logs/:id',
-            'DELETE /api/call-logs/:id'
+            'GET /api/call-logs/test (public)',
+            'POST /api/call-logs (authenticated, call limit)',
+            'GET /api/call-logs (authenticated)',
+            'GET /api/call-logs/:id (authenticated)',
+            'PUT /api/call-logs/:id (authenticated)',
+            'DELETE /api/call-logs/:id (authenticated, requires manage_leads)',
+            'GET /api/call-logs/analytics/stats (authenticated, requires view_analytics)',
+            'GET /api/call-logs/my/summary (authenticated)',
+            'GET /api/call-logs/recent (authenticated)',
+            'GET /api/call-logs/search (authenticated)',
+            'GET /api/call-logs/export (authenticated, requires view_analytics)',
+            'POST /api/call-logs/bulk (authenticated, requires manage_leads)'
         ]
     });
 });
 
 // ==========================================
-// POST /api/call-logs - Create new call log
+// GET /api/call-logs/analytics/stats - Analytics (REQUIRES PERMISSION)
 // ==========================================
-router.post('/', async (req, res) => {
+router.get('/analytics/stats', auth, checkPermission('view_analytics'), async (req, res) => {
+    console.log("📊 GET /api/call-logs/analytics/stats - Fetching analytics");
+    console.log("👤 User:", req.user.userId, "Organization:", req.user.organizationId);
+    
+    try {
+        const { days = 30 } = req.query;
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - parseInt(days));
+
+        // Build filter based on user permissions
+        let matchFilter = {
+            timestamp: { $gte: startDate, $lte: new Date() }
+        };
+        
+        if (!req.user.permissions.includes('view_all_calls')) {
+            matchFilter.userId = req.user.userId;
+        } else {
+            matchFilter.organizationId = req.user.organizationId;
+        }
+
+        // Analytics aggregation
+        const analytics = await CallLog.aggregate([
+            { $match: matchFilter },
+            {
+                $group: {
+                    _id: null,
+                    totalCalls: { $sum: 1 },
+                    totalDuration: { $sum: '$duration' },
+                    avgDuration: { $avg: '$duration' },
+                    incomingCalls: {
+                        $sum: { $cond: [{ $eq: ['$callType', 'incoming'] }, 1, 0] }
+                    },
+                    outgoingCalls: {
+                        $sum: { $cond: [{ $eq: ['$callType', 'outgoing'] }, 1, 0] }
+                    },
+                    missedCalls: {
+                        $sum: { $cond: [{ $eq: ['$callType', 'missed'] }, 1, 0] }
+                    },
+                    successfulCalls: {
+                        $sum: { $cond: [{ $gt: ['$duration', 0] }, 1, 0] }
+                    }
+                }
+            }
+        ]);
+
+        // Call type breakdown
+        const callTypeBreakdown = await CallLog.aggregate([
+            { $match: matchFilter },
+            {
+                $group: {
+                    _id: '$callType',
+                    count: { $sum: 1 },
+                    totalDuration: { $sum: '$duration' },
+                    avgDuration: { $avg: '$duration' }
+                }
+            }
+        ]);
+
+        // Daily call trends
+        const dailyTrends = await CallLog.aggregate([
+            { $match: matchFilter },
+            {
+                $group: {
+                    _id: {
+                        year: { $year: '$timestamp' },
+                        month: { $month: '$timestamp' },
+                        day: { $dayOfMonth: '$timestamp' }
+                    },
+                    calls: { $sum: 1 },
+                    duration: { $sum: '$duration' }
+                }
+            },
+            { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
+        ]);
+
+        // Top contacts by call frequency
+        const topContacts = await CallLog.aggregate([
+            { $match: matchFilter },
+            {
+                $group: {
+                    _id: { 
+                        phoneNumber: '$phoneNumber',
+                        contactName: '$contactName'
+                    },
+                    callCount: { $sum: 1 },
+                    totalDuration: { $sum: '$duration' },
+                    lastCall: { $max: '$timestamp' }
+                }
+            },
+            { $sort: { callCount: -1 } },
+            { $limit: 10 }
+        ]);
+
+        const summary = analytics[0] || {
+            totalCalls: 0,
+            totalDuration: 0,
+            avgDuration: 0,
+            incomingCalls: 0,
+            outgoingCalls: 0,
+            missedCalls: 0,
+            successfulCalls: 0
+        };
+
+        console.log("✅ Analytics calculated successfully");
+        console.log("📈 Summary:", summary);
+
+        res.json({
+            success: true,
+            data: {
+                summary,
+                callTypeBreakdown,
+                dailyTrends,
+                topContacts,
+                period: `${days} days`,
+                scope: req.user.permissions.includes('view_all_calls') ? 'organization' : 'personal',
+                generated: new Date().toISOString()
+            }
+        });
+
+    } catch (error) {
+        console.error("❌ Error generating analytics:", error);
+        res.status(500).json({
+            success: false,
+            message: 'Error generating analytics',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// GET /api/call-logs/my/summary - Personal call summary
+// ==========================================
+router.get('/my/summary', auth, async (req, res) => {
+    console.log("👤 GET /api/call-logs/my/summary - Personal call summary");
+    
+    try {
+        const { days = 7 } = req.query;
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - parseInt(days));
+
+        const summary = await CallLog.aggregate([
+            {
+                $match: {
+                    userId: req.user.userId,
+                    timestamp: { $gte: startDate }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalCalls: { $sum: 1 },
+                    totalDuration: { $sum: '$duration' },
+                    avgDuration: { $avg: '$duration' },
+                    incomingCalls: {
+                        $sum: { $cond: [{ $eq: ['$callType', 'incoming'] }, 1, 0] }
+                    },
+                    outgoingCalls: {
+                        $sum: { $cond: [{ $eq: ['$callType', 'outgoing'] }, 1, 0] }
+                    },
+                    missedCalls: {
+                        $sum: { $cond: [{ $eq: ['$callType', 'missed'] }, 1, 0] }
+                    }
+                }
+            }
+        ]);
+
+        // Get user's current usage
+        const currentUser = await User.findById(req.user.userId);
+
+        // Get recent activity
+        const recentCalls = await CallLog.find({
+            userId: req.user.userId,
+            timestamp: { $gte: startDate }
+        })
+        .sort({ timestamp: -1 })
+        .limit(5)
+        .lean();
+
+        res.json({
+            success: true,
+            data: {
+                period: `${days} days`,
+                summary: summary[0] || {
+                    totalCalls: 0,
+                    totalDuration: 0,
+                    avgDuration: 0,
+                    incomingCalls: 0,
+                    outgoingCalls: 0,
+                    missedCalls: 0
+                },
+                usage: {
+                    callsUsed: currentUser.callsUsed,
+                    callLimit: currentUser.callLimit,
+                    remainingCalls: currentUser.callLimit - currentUser.callsUsed,
+                    usagePercentage: Math.round((currentUser.callsUsed / currentUser.callLimit) * 100)
+                },
+                recentActivity: recentCalls
+            }
+        });
+
+    } catch (error) {
+        console.error("❌ Error fetching personal summary:", error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching personal summary',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// GET /api/call-logs/recent - Recent call logs
+// ==========================================
+router.get('/recent', auth, async (req, res) => {
+    console.log("🕒 GET /api/call-logs/recent - Recent call logs");
+    
+    try {
+        const { limit = 5 } = req.query;
+        
+        let filter = {};
+        
+        // Apply user/org filter
+        if (!req.user.permissions.includes('view_all_calls')) {
+            filter.userId = req.user.userId;
+        } else {
+            filter.organizationId = req.user.organizationId;
+        }
+        
+        const recentCalls = await CallLog.find(filter)
+            .populate('userId', 'firstName lastName')
+            .sort({ timestamp: -1 })
+            .limit(parseInt(limit))
+            .lean();
+        
+        res.json({
+            success: true,
+            data: recentCalls,
+            count: recentCalls.length
+        });
+        
+    } catch (error) {
+        console.error("❌ Error fetching recent calls:", error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching recent calls',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// GET /api/call-logs/search - Search call logs
+// ==========================================
+router.get('/search', auth, async (req, res) => {
+    console.log("🔍 GET /api/call-logs/search - Search call logs");
+    
+    try {
+        const { q, limit = 10 } = req.query;
+        
+        if (!q || q.trim().length < 2) {
+            return res.status(400).json({
+                success: false,
+                message: 'Search query must be at least 2 characters'
+            });
+        }
+        
+        let filter = {
+            $or: [
+                { phoneNumber: { $regex: q, $options: 'i' } },
+                { contactName: { $regex: q, $options: 'i' } },
+                { notes: { $regex: q, $options: 'i' } }
+            ]
+        };
+        
+        // Apply user/org filter
+        if (!req.user.permissions.includes('view_all_calls')) {
+            filter.userId = req.user.userId;
+        } else {
+            filter.organizationId = req.user.organizationId;
+        }
+        
+        const results = await CallLog.find(filter)
+            .populate('userId', 'firstName lastName')
+            .sort({ timestamp: -1 })
+            .limit(parseInt(limit))
+            .lean();
+        
+        res.json({
+            success: true,
+            data: results,
+            query: q,
+            count: results.length
+        });
+        
+    } catch (error) {
+        console.error("❌ Error searching call logs:", error);
+        res.status(500).json({
+            success: false,
+            message: 'Error searching call logs',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// GET /api/call-logs/export - Export call logs
+// ==========================================
+router.get('/export', auth, checkPermission('view_analytics'), async (req, res) => {
+    console.log("📤 GET /api/call-logs/export - Export call logs");
+    
+    try {
+        const { format = 'json', startDate, endDate } = req.query;
+        
+        let filter = {};
+        
+        // Date range filter
+        if (startDate && endDate) {
+            filter.timestamp = {
+                $gte: new Date(startDate),
+                $lte: new Date(endDate)
+            };
+        }
+        
+        // Apply user/org filter
+        if (!req.user.permissions.includes('view_all_calls')) {
+            filter.userId = req.user.userId;
+        } else {
+            filter.organizationId = req.user.organizationId;
+        }
+        
+        const callLogs = await CallLog.find(filter)
+            .populate('userId', 'firstName lastName email')
+            .sort({ timestamp: -1 })
+            .lean();
+        
+        if (format === 'csv') {
+            // Convert to CSV format
+            const csvHeader = 'Date,Phone Number,Contact Name,Call Type,Duration (seconds),Notes,User\n';
+            const csvRows = callLogs.map(log => 
+                `"${log.timestamp}","${log.phoneNumber}","${log.contactName}","${log.callType}","${log.duration}","${log.notes || ''}","${log.userId?.firstName || ''} ${log.userId?.lastName || ''}"`
+            ).join('\n');
+            
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename="call-logs.csv"');
+            res.send(csvHeader + csvRows);
+        } else {
+            // JSON format
+            res.json({
+                success: true,
+                data: callLogs,
+                exportInfo: {
+                    count: callLogs.length,
+                    dateRange: { startDate, endDate },
+                    exportedAt: new Date().toISOString(),
+                    exportedBy: req.user.email
+                }
+            });
+        }
+        
+    } catch (error) {
+        console.error("❌ Error exporting call logs:", error);
+        res.status(500).json({
+            success: false,
+            message: 'Error exporting call logs',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// GET /api/call-logs/stats/realtime - Real-time stats
+// ==========================================
+router.get('/stats/realtime', auth, async (req, res) => {
+    console.log("⚡ GET /api/call-logs/stats/realtime - Real-time stats");
+    
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        let filter = { timestamp: { $gte: today } };
+        
+        // Apply user/org filter
+        if (!req.user.permissions.includes('view_all_calls')) {
+            filter.userId = req.user.userId;
+        } else {
+            filter.organizationId = req.user.organizationId;
+        }
+        
+        const todayStats = await CallLog.aggregate([
+            { $match: filter },
+            {
+                $group: {
+                    _id: null,
+                    totalCalls: { $sum: 1 },
+                    totalDuration: { $sum: '$duration' },
+                    lastCallTime: { $max: '$timestamp' },
+                    incomingCalls: {
+                        $sum: { $cond: [{ $eq: ['$callType', 'incoming'] }, 1, 0] }
+                    },
+                    outgoingCalls: {
+                        $sum: { $cond: [{ $eq: ['$callType', 'outgoing'] }, 1, 0] }
+                    },
+                    missedCalls: {
+                        $sum: { $cond: [{ $eq: ['$callType', 'missed'] }, 1, 0] }
+                    }
+                }
+            }
+        ]);
+        
+        const stats = todayStats[0] || {
+            totalCalls: 0,
+            totalDuration: 0,
+            lastCallTime: null,
+            incomingCalls: 0,
+            outgoingCalls: 0,
+            missedCalls: 0
+        };
+        
+        res.json({
+            success: true,
+            data: {
+                today: stats,
+                timestamp: new Date().toISOString(),
+                scope: req.user.permissions.includes('view_all_calls') ? 'organization' : 'personal'
+            }
+        });
+        
+    } catch (error) {
+        console.error("❌ Error fetching real-time stats:", error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching real-time stats',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// POST /api/call-logs - Create new call log (AUTHENTICATED + CALL LIMIT)
+// ==========================================
+router.post('/', auth, checkCallLimit, async (req, res) => {
     console.log("📞 POST /api/call-logs - Creating new call log");
+    console.log("👤 User:", req.user.userId, req.user.email);
+    console.log("🏢 Organization:", req.user.organizationId);
     console.log("📊 Request body:", req.body);
     
     try {
@@ -47,7 +507,11 @@ router.post('/', async (req, res) => {
             simSlot,
             deviceInfo,
             tags,
-            notes
+            notes,
+            callPurpose,
+            callOutcome,
+            followUpRequired,
+            followUpDate
         } = req.body;
 
         // Validation
@@ -72,24 +536,52 @@ router.post('/', async (req, res) => {
             });
         }
 
-        // Create call log
+        // Create call log with user and organization info
         const callLog = new CallLog({
+            // User & Organization
+            userId: req.user.userId,
+            organizationId: req.user.organizationId,
+            
+            // Call Information
             phoneNumber: phoneNumber.trim(),
             contactName: contactName || 'Unknown',
             duration: parseInt(duration),
             callType,
             timestamp: timestamp ? new Date(timestamp) : new Date(),
-            simSlot: simSlot || 1,
-            deviceInfo: deviceInfo || {},
+            
+            // Additional Information
+            notes: notes || '',
             tags: tags || [],
-            callQuality: {
-                notes: notes || ''
-            }
+            
+            // Business Context
+            callPurpose: callPurpose || 'other',
+            callOutcome: callOutcome || null,
+            
+            // Follow-up
+            followUpRequired: followUpRequired || false,
+            followUpDate: followUpDate ? new Date(followUpDate) : null,
+            
+            // Device Information
+            deviceInfo: typeof deviceInfo === 'string' ? deviceInfo : 'Android Device',
+            simCard: simSlot ? `SIM ${simSlot}` : 'SIM 1',
+            
+            // Set call status based on duration
+            callStatus: duration > 0 ? 'answered' : 'missed'
         });
 
         const savedCallLog = await callLog.save();
         
+        // Update user's call count
+        await User.findByIdAndUpdate(
+            req.user.userId,
+            { $inc: { callsUsed: 1 } }
+        );
+        
+        // Populate user info for response
+        await savedCallLog.populate('userId', 'firstName lastName email');
+        
         console.log("✅ Call log saved successfully:", savedCallLog._id);
+        console.log("📈 User call count incremented");
         
         res.status(201).json({
             success: true,
@@ -108,10 +600,12 @@ router.post('/', async (req, res) => {
 });
 
 // ==========================================
-// GET /api/call-logs - Get all call logs
+// GET /api/call-logs - Get call logs (USER/ORG SPECIFIC)
 // ==========================================
-router.get('/', async (req, res) => {
+router.get('/', auth, async (req, res) => {
     console.log("📋 GET /api/call-logs - Fetching call logs");
+    console.log("👤 User:", req.user.userId, "Role:", req.user.role);
+    console.log("🔑 Permissions:", req.user.permissions);
     
     try {
         const {
@@ -125,9 +619,18 @@ router.get('/', async (req, res) => {
             sortOrder = 'desc'
         } = req.query;
 
-        // Build filter object
-        const filter = { isDeleted: false };
+        // Build filter object based on user permissions
+        let filter = {};
         
+        // If user doesn't have view_all_calls permission, only show their calls
+        if (!req.user.permissions.includes('view_all_calls')) {
+            filter.userId = req.user.userId;
+        } else {
+            // Admin/Manager can see all calls in their organization
+            filter.organizationId = req.user.organizationId;
+        }
+        
+        // Additional filters
         if (callType) {
             filter.callType = callType;
         }
@@ -142,6 +645,8 @@ router.get('/', async (req, res) => {
             if (endDate) filter.timestamp.$lte = new Date(endDate);
         }
 
+        console.log("🔍 Filter applied:", filter);
+
         // Build sort object
         const sort = {};
         sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
@@ -151,6 +656,7 @@ router.get('/', async (req, res) => {
         
         const [callLogs, totalCount] = await Promise.all([
             CallLog.find(filter)
+                   .populate('userId', 'firstName lastName email')
                    .sort(sort)
                    .skip(skip)
                    .limit(parseInt(limit))
@@ -175,6 +681,10 @@ router.get('/', async (req, res) => {
                 hasNextPage,
                 hasPrevPage,
                 limit: parseInt(limit)
+            },
+            user: {
+                canViewAll: req.user.permissions.includes('view_all_calls'),
+                role: req.user.role
             }
         });
 
@@ -189,18 +699,29 @@ router.get('/', async (req, res) => {
 });
 
 // ==========================================
-// GET /api/call-logs/:id - Get single call log
+// GET /api/call-logs/:id - Get single call log (USER/ORG SPECIFIC)
 // ==========================================
-router.get('/:id', async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
     console.log(`🔍 GET /api/call-logs/${req.params.id} - Fetching single call log`);
+    console.log("👤 User:", req.user.userId);
     
     try {
-        const callLog = await CallLog.findById(req.params.id);
+        // Build query based on user permissions
+        let query = { _id: req.params.id };
         
-        if (!callLog || callLog.isDeleted) {
+        if (!req.user.permissions.includes('view_all_calls')) {
+            query.userId = req.user.userId;
+        } else {
+            query.organizationId = req.user.organizationId;
+        }
+        
+        const callLog = await CallLog.findOne(query)
+            .populate('userId', 'firstName lastName email');
+        
+        if (!callLog) {
             return res.status(404).json({
                 success: false,
-                message: 'Call log not found'
+                message: 'Call log not found or access denied'
             });
         }
 
@@ -222,15 +743,16 @@ router.get('/:id', async (req, res) => {
 });
 
 // ==========================================
-// PUT /api/call-logs/:id - Update call log
+// PUT /api/call-logs/:id - Update call log (USER/ORG SPECIFIC)
 // ==========================================
-router.put('/:id', async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
     console.log(`✏️ PUT /api/call-logs/${req.params.id} - Updating call log`);
+    console.log("👤 User:", req.user.userId);
     
     try {
         const allowedUpdates = [
-            'contactName', 'tags', 'callQuality', 'leadStatus', 
-            'followUpDate', 'priority', 'transcription', 'sentiment'
+            'contactName', 'tags', 'notes', 'callPurpose', 'callOutcome',
+            'followUpRequired', 'followUpDate', 'callQuality'
         ];
         
         const updates = {};
@@ -240,16 +762,25 @@ router.put('/:id', async (req, res) => {
             }
         });
 
-        const callLog = await CallLog.findByIdAndUpdate(
-            req.params.id,
-            { $set: updates },
-            { new: true, runValidators: true }
-        );
+        // Build query based on user permissions
+        let query = { _id: req.params.id };
+        
+        if (!req.user.permissions.includes('view_all_calls')) {
+            query.userId = req.user.userId;
+        } else {
+            query.organizationId = req.user.organizationId;
+        }
 
-        if (!callLog || callLog.isDeleted) {
+        const callLog = await CallLog.findOneAndUpdate(
+            query,
+            { $set: { ...updates, updatedAt: new Date() } },
+            { new: true, runValidators: true }
+        ).populate('userId', 'firstName lastName email');
+
+        if (!callLog) {
             return res.status(404).json({
                 success: false,
-                message: 'Call log not found'
+                message: 'Call log not found or access denied'
             });
         }
 
@@ -272,23 +803,38 @@ router.put('/:id', async (req, res) => {
 });
 
 // ==========================================
-// DELETE /api/call-logs/:id - Soft delete call log
+// DELETE /api/call-logs/:id - Delete call log (REQUIRES PERMISSION)
 // ==========================================
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', auth, checkPermission('manage_leads'), async (req, res) => {
     console.log(`🗑️ DELETE /api/call-logs/${req.params.id} - Deleting call log`);
+    console.log("👤 User:", req.user.userId, "has manage_leads permission");
     
     try {
-        const callLog = await CallLog.findByIdAndUpdate(
-            req.params.id,
-            { isDeleted: true },
-            { new: true }
-        );
+        // Build query based on user permissions
+        let query = { _id: req.params.id };
+        
+        if (!req.user.permissions.includes('view_all_calls')) {
+            query.userId = req.user.userId;
+        } else {
+            query.organizationId = req.user.organizationId;
+        }
+
+        const callLog = await CallLog.findOneAndDelete(query);
 
         if (!callLog) {
             return res.status(404).json({
                 success: false,
-                message: 'Call log not found'
+                message: 'Call log not found or access denied'
             });
+        }
+
+        // Decrease user's call count if it was their call
+        if (callLog.userId.toString() === req.user.userId.toString()) {
+            await User.findByIdAndUpdate(
+                req.user.userId,
+                { $inc: { callsUsed: -1 } }
+            );
+            console.log("📉 User call count decremented");
         }
 
         console.log("✅ Call log deleted successfully:", callLog._id);
@@ -309,73 +855,11 @@ router.delete('/:id', async (req, res) => {
 });
 
 // ==========================================
-// GET /api/call-logs/analytics/stats - Call statistics
+// POST /api/call-logs/bulk - Bulk import (REQUIRES PERMISSION)
 // ==========================================
-router.get('/analytics/stats', async (req, res) => {
-    console.log("📊 GET /api/call-logs/analytics/stats - Fetching analytics");
-    
-    try {
-        const { days = 30 } = req.query;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - parseInt(days));
-
-        const stats = await CallLog.getCallStats({
-            start: startDate,
-            end: new Date()
-        });
-
-        const sentimentTrends = await CallLog.getSentimentTrends();
-
-        // Total counts
-        const totalCalls = await CallLog.countDocuments({ 
-            isDeleted: false,
-            timestamp: { $gte: startDate }
-        });
-
-        const avgDuration = await CallLog.aggregate([
-            {
-                $match: {
-                    isDeleted: false,
-                    timestamp: { $gte: startDate }
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    avgDuration: { $avg: '$duration' }
-                }
-            }
-        ]);
-
-        console.log("✅ Analytics calculated successfully");
-
-        res.json({
-            success: true,
-            data: {
-                totalCalls,
-                averageDuration: avgDuration[0]?.avgDuration || 0,
-                callTypeBreakdown: stats,
-                sentimentTrends,
-                period: `${days} days`,
-                generated: new Date().toISOString()
-            }
-        });
-
-    } catch (error) {
-        console.error("❌ Error generating analytics:", error);
-        res.status(500).json({
-            success: false,
-            message: 'Error generating analytics',
-            error: error.message
-        });
-    }
-});
-
-// ==========================================
-// POST /api/call-logs/bulk - Bulk import
-// ==========================================
-router.post('/bulk', async (req, res) => {
+router.post('/bulk', auth, checkPermission('manage_leads'), async (req, res) => {
     console.log("📦 POST /api/call-logs/bulk - Bulk importing call logs");
+    console.log("👤 User:", req.user.userId, "Organization:", req.user.organizationId);
     
     try {
         const { callLogs } = req.body;
@@ -387,20 +871,48 @@ router.post('/bulk', async (req, res) => {
             });
         }
 
-        // Validate each call log
+        // Check if user has enough call limit
+        const currentUser = await User.findById(req.user.userId);
+        const remainingCalls = currentUser.callLimit - currentUser.callsUsed;
+        
+        if (callLogs.length > remainingCalls) {
+            return res.status(403).json({
+                success: false,
+                message: `Bulk import would exceed your call limit. You have ${remainingCalls} calls remaining, but trying to import ${callLogs.length} calls.`,
+                data: {
+                    callsToImport: callLogs.length,
+                    remainingCalls,
+                    upgradeRequired: true
+                }
+            });
+        }
+
+        // Validate and prepare each call log
         const validatedLogs = callLogs.map((log, index) => {
             if (!log.phoneNumber || !log.callType || log.duration === undefined) {
                 throw new Error(`Invalid call log at index ${index}: missing required fields`);
             }
             return {
                 ...log,
-                timestamp: log.timestamp ? new Date(log.timestamp) : new Date()
+                userId: req.user.userId,
+                organizationId: req.user.organizationId,
+                timestamp: log.timestamp ? new Date(log.timestamp) : new Date(),
+                contactName: log.contactName || 'Unknown',
+                notes: log.notes || '',
+                syncStatus: 'synced'
             };
         });
 
         const savedLogs = await CallLog.insertMany(validatedLogs);
 
+        // Update user's call count
+        await User.findByIdAndUpdate(
+            req.user.userId,
+            { $inc: { callsUsed: savedLogs.length } }
+        );
+
         console.log(`✅ Bulk imported ${savedLogs.length} call logs`);
+        console.log(`📈 User call count increased by ${savedLogs.length}`);
 
         res.status(201).json({
             success: true,
@@ -408,7 +920,9 @@ router.post('/bulk', async (req, res) => {
             data: {
                 importedCount: savedLogs.length,
                 firstId: savedLogs[0]._id,
-                lastId: savedLogs[savedLogs.length - 1]._id
+                lastId: savedLogs[savedLogs.length - 1]._id,
+                callsUsedAfterImport: currentUser.callsUsed + savedLogs.length,
+                callLimit: currentUser.callLimit
             }
         });
 
@@ -421,5 +935,7 @@ router.post('/bulk', async (req, res) => {
         });
     }
 });
+
+console.log("✅ callLogs.js routes setup complete - All endpoints ready!");
 
 module.exports = router;
