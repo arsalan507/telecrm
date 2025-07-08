@@ -1,18 +1,42 @@
 {
-  "name": "telecrm-backend",
+  "name": "calltracker-pro-backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "CallTracker Pro - Smart Call Logging & CRM Backend API",
+  "main": "app.js",
   "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "keywords": [
+    "calltracker",
+    "crm",
+    "call-logging",
+    "telemarketing",
+    "call-management",
+    "nodejs",
+    "express",
+    "mongodb"
+  ],
+  "author": "CallTracker Pro Team",
+  "license": "MIT",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "express-validator": "^7.2.1",
+    "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.15.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "your-repo-url"
   }
 }

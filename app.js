@@ -21,18 +21,24 @@ app.use((req, res, next) => {
 
 // Routes
 const callLogsRoute = require('./routes/callLogs');
+const authRoute = require('./routes/auth'); // NEW: Auth routes
+
 app.use('/api/call-logs', callLogsRoute);
+app.use('/api/auth', authRoute); // NEW: Mount auth routes
 
 // Root route
 app.get('/', (req, res) => {
     res.json({ 
-        message: 'TeleCRM API is running',
+        message: 'CallTracker Pro API is running',
         version: '1.0.0',
         database: process.env.MONGODB_URI ? 'configured' : 'not configured',
         endpoints: [
             'GET /api/call-logs/test',
             'POST /api/call-logs',
-            'GET /api/call-logs'
+            'GET /api/call-logs',
+            'POST /api/auth/register', // NEW
+            'POST /api/auth/login',    // NEW
+            'GET /api/auth/profile'    // NEW
         ]
     });
 });
