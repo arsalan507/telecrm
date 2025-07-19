@@ -3,13 +3,10 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const connectDB = require('./config/database');
 
 const app = express();
 
-// Connect to MongoDB
-connectDB();
-
+// Middleware
 app.use(cors());
 app.use(express.json());
 
@@ -19,12 +16,12 @@ app.use((req, res, next) => {
     next();
 });
 
-// Routes
+// Routes (no database middleware here)
 const callLogsRoute = require('./routes/callLogs');
-const authRoute = require('./routes/auth'); // NEW: Auth routes
+const authRoute = require('./routes/auth');
 
 app.use('/api/call-logs', callLogsRoute);
-app.use('/api/auth', authRoute); // NEW: Mount auth routes
+app.use('/api/auth', authRoute);
 
 // Root route
 app.get('/', (req, res) => {
@@ -36,9 +33,9 @@ app.get('/', (req, res) => {
             'GET /api/call-logs/test',
             'POST /api/call-logs',
             'GET /api/call-logs',
-            'POST /api/auth/register', // NEW
-            'POST /api/auth/login',    // NEW
-            'GET /api/auth/profile'    // NEW
+            'POST /api/auth/register',
+            'POST /api/auth/login',
+            'GET /api/auth/profile'
         ]
     });
 });

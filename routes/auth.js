@@ -3,19 +3,62 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 
-// Import your existing User model
+// Import your User model
 const User = require('../models/User');
+
+// Debug endpoints
+router.get('/simple-test', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Simple auth test working - no database required',
+        timestamp: new Date().toISOString()
+    });
+});
+
+router.get('/debug', async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            message: 'Auth debug endpoint working',
+            environment: {
+                nodeEnv: process.env.NODE_ENV,
+                mongoConfigured: !!process.env.MONGODB_URI,
+                jwtConfigured: !!process.env.JWT_SECRET,
+                mongoUriLength: process.env.MONGODB_URI ? process.env.MONGODB_URI.length : 0
+            },
+            mongoose: {
+                connectionState: require('mongoose').connection.readyState,
+                states: {
+                    0: 'disconnected',
+                    1: 'connected', 
+                    2: 'connecting',
+                    3: 'disconnecting'
+                }
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Debug endpoint error: ' + error.message
+        });
+    }
+});
 
 // @route   POST /api/auth/register
 // @desc    Register new user
 // @access  Public
 router.post('/register', async (req, res) => {
     try {
+        // Connect to database for this specific route
+        const connectDB = require('../config/database');
+        await connectDB();
+
         console.log('📝 Registration request received:', req.body);
         
         const { firstName, lastName, email, phone, organizationName, password } = req.body;
 
-        // Validation
+        // Basic validation
         if (!firstName || !lastName || !email || !phone || !organizationName || !password) {
             console.log('❌ Missing required fields');
             return res.status(400).json({
@@ -34,7 +77,7 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Password length validation
+        // Password validation
         if (password.length < 6) {
             console.log('❌ Password too short');
             return res.status(400).json({
@@ -53,15 +96,17 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Create user using your existing model structure
+        // Create user
         const userData = {
             firstName,
             lastName,
             email: email.toLowerCase(),
-            phone,
-            password, // Will be hashed by your User model's pre-save hook
-            role: 'admin', // First user becomes admin
+            phone: phone.replace(/\D/g, ''), // Clean phone number
+            organizationName,
+            password, // Will be hashed by pre-save hook
+            role: 'admin',
             isActive: true,
+            signupSource: 'android',
             permissions: ['manage_team', 'view_all_calls', 'manage_leads', 'export_data', 'manage_settings', 'view_analytics']
         };
 
@@ -70,32 +115,36 @@ router.post('/register', async (req, res) => {
 
         console.log('✅ User created successfully:', user.email);
 
-        // Generate token using your User model's method
+        // Generate token
         const token = user.generateAuthToken();
 
-        // Prepare response to match your Android app's expected format
+        // Response
         res.status(201).json({
             success: true,
-            message: 'Account created successfully',
+            message: 'Account created successfully! Welcome to CallTracker Pro.',
             token,
             user: {
                 id: user._id,
                 firstName: user.firstName,
                 lastName: user.lastName,
-                fullName: `${user.firstName} ${user.lastName}`,
+                fullName: user.fullName,
                 email: user.email,
+                phone: user.phone,
+                organizationName: user.organizationName,
                 role: user.role,
-                permissions: user.permissions
+                permissions: user.permissions,
+                subscriptionPlan: user.subscriptionPlan,
+                callLimit: user.callLimit,
+                callsUsed: user.callsUsed,
+                isActive: user.isActive,
+                createdAt: user.createdAt
             },
-            expiresIn: 604800 // 7 days in seconds
+            expiresIn: 604800 // 7 days
         });
-
-        console.log('✅ Registration successful for:', user.email);
 
     } catch (error) {
         console.error('❌ Registration error:', error);
         
-        // Handle duplicate key errors
         if (error.code === 11000) {
             return res.status(409).json({
                 success: false,
@@ -103,7 +152,6 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Handle validation errors
         if (error.name === 'ValidationError') {
             const validationErrors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({
@@ -125,6 +173,10 @@ router.post('/register', async (req, res) => {
 // @access  Public
 router.post('/login', async (req, res) => {
     try {
+        // Connect to database for this specific route
+        const connectDB = require('../config/database');
+        await connectDB();
+
         console.log('🔐 Login request received:', { email: req.body.email });
         
         const { email, password } = req.body;
@@ -148,16 +200,7 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Check if user is active
-        if (!user.isActive) {
-            console.log('❌ User is inactive:', email);
-            return res.status(401).json({
-                success: false,
-                message: 'Account is deactivated. Please contact your administrator.'
-            });
-        }
-
-        // Check password using your User model's method
+        // Check password
         const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
             console.log('❌ Invalid password for:', email);
@@ -167,28 +210,34 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Update last login using your User model's method
+        // Update last login
         await user.updateLastLogin();
 
-        // Generate token using your User model's method
+        // Generate token
         const token = user.generateAuthToken();
 
-        // Prepare response to match your Android app's expected format
+        // Response
         res.json({
             success: true,
-            message: 'Login successful',
+            message: `Welcome back, ${user.firstName}!`,
             token,
             user: {
                 id: user._id,
                 firstName: user.firstName,
                 lastName: user.lastName,
-                fullName: `${user.firstName} ${user.lastName}`,
+                fullName: user.fullName,
                 email: user.email,
+                phone: user.phone,
+                organizationName: user.organizationName,
                 role: user.role,
                 permissions: user.permissions,
-                lastLogin: user.lastLogin
+                subscriptionPlan: user.subscriptionPlan,
+                callLimit: user.callLimit,
+                callsUsed: user.callsUsed,
+                lastLogin: user.lastLogin,
+                isActive: user.isActive
             },
-            expiresIn: 604800 // 7 days in seconds
+            expiresIn: 604800
         });
 
         console.log('✅ Login successful for:', user.email);
@@ -202,19 +251,34 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// @route   GET /api/auth/profile
-// @desc    Get current user profile
-// @access  Private (add auth middleware later)
-router.get('/profile', async (req, res) => {
+// @route   POST /api/auth/check-email
+// @desc    Check if email exists
+// @access  Public
+router.post('/check-email', async (req, res) => {
     try {
-        // For now, return a success message
-        // You can add authentication middleware later
+        // Connect to database for this specific route
+        const connectDB = require('../config/database');
+        await connectDB();
+
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email is required'
+            });
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase() });
+
         res.json({
             success: true,
-            message: 'Profile endpoint working'
+            exists: !!user,
+            message: user ? 'Email is already registered' : 'Email is available'
         });
+
     } catch (error) {
-        console.error('❌ Profile error:', error);
+        console.error('❌ Check email error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error'
@@ -222,11 +286,20 @@ router.get('/profile', async (req, res) => {
     }
 });
 
-// Test endpoint
+// @route   GET /api/auth/test
+// @desc    Test auth routes
+// @access  Public
 router.get('/test', (req, res) => {
     res.json({
         success: true,
-        message: 'Auth routes are working!',
+        message: 'CallTracker Pro Auth API is working!',
+        version: '1.0.0',
+        endpoints: {
+            register: 'POST /api/auth/register',
+            login: 'POST /api/auth/login',
+            checkEmail: 'POST /api/auth/check-email',
+            debug: 'GET /api/auth/debug'
+        },
         timestamp: new Date().toISOString()
     });
 });

@@ -1,211 +1,296 @@
 # 🚀 CallTracker Pro - AI-Powered Call Management System
 
-[![Deployment Status](https://img.shields.io/badge/Deployment-Live%20on%20Vercel-brightgreen)](https://calltrackerpro-backend-nsr4t3eyv-arsalan507s-projects.vercel.app)
-[![Backend](https://img.shields.io/badge/Backend-Node.js%20%2B%20MongoDB-blue)](https://github.com/arsalan507/telecrm)
+[![Deployment Status](https://img.shields.io/badge/Deployment-Live%20on%20Vercel-brightgreen)](https://calltrackerpro-backend-k1sb8ryx3-arsalan507s-projects.vercel.app)
+[![Backend](https://img.shields.io/badge/Backend-Node.js%20%2B%20MongoDB-blue)](https://github.com/arsalan507/calltrackerpro-backend)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Database](https://img.shields.io/badge/Database-MongoDB%20Atlas-green)](https://www.mongodb.com/cloud/atlas)
+[![Auth](https://img.shields.io/badge/Auth-JWT%20%2B%20BCrypt-orange)](https://jwt.io/)
 
-A modern SIM-based CallTracker Pro system with AI-powered transcription, sentiment analysis, and comprehensive call management capabilities.
+A modern, production-ready CallTracker Pro system with AI-powered insights, comprehensive user management, and secure authentication. Built for scale with MongoDB Atlas and deployed on Vercel.
 
 ## 🌐 **Live Demo**
 
-**🔗 Backend API:** [https://calltrackerpro-backend-nsr4t3eyv-arsalan507s-projects.vercel.app](https://calltrackerpro-backend-nsr4t3eyv-arsalan507s-projects.vercel.app)
+**🔗 Backend API:** [https://calltrackerpro-backend-k1sb8ryx3-arsalan507s-projects.vercel.app](https://calltrackerpro-backend-k1sb8ryx3-arsalan507s-projects.vercel.app)
 
-**📱 Android App:** *Currently in development*
+**📱 Android App:** *Production Ready - Contact for access*
 
-**📊 API Documentation:** Test the endpoints directly via the live API
+**🔐 Authentication:** Full JWT-based auth system with user registration, login, and protected routes
 
-## ✨ **Features**
+## ✨ **Current Features**
 
-### 📞 **Call Management**
-- **Real-time Call Logging**: Automatic SIM call data capture from Android devices
+### 🔐 **Authentication & User Management**
+- **User Registration**: Complete signup with organization management
+- **JWT Authentication**: Secure token-based authentication
+- **Password Security**: BCrypt hashing with salt rounds
+- **Role-based Access**: Admin, Manager, Agent, Viewer roles
+- **Profile Management**: User profiles with permissions and limits
+
+### 📞 **Call Management System**
+- **Real-time Call Logging**: Production-ready call data capture
 - **Contact Integration**: Smart contact matching and management
-- **Call History**: Comprehensive call analytics and reporting
+- **Call History**: Comprehensive analytics and reporting
+- **Bulk Operations**: Efficient bulk call log synchronization
 
-### 🧠 **AI-Powered Insights**
-- **Voice Transcription**: Powered by OpenAI Whisper
-- **Sentiment Analysis**: AI-driven call sentiment detection
-- **Smart Insights**: Automated call categorization and tagging
+### 🛡️ **Security & Production Features**
+- **Environment Configuration**: Secure production environment setup
+- **Database Connection**: MongoDB Atlas cloud database integration
+- **Error Handling**: Comprehensive error management and logging
+- **Input Validation**: Complete request validation and sanitization
+- **CORS Support**: Cross-origin resource sharing configured
 
-### 📊 **Analytics & CRM**
-- **Dashboard**: Real-time call statistics and performance metrics
-- **Customer Profiles**: Complete call history and interaction timeline
-- **Export/Import**: Data portability and backup capabilities
-
-### 📱 **Mobile Integration**
-- **Android App**: Native mobile application for seamless call logging
-- **Background Monitoring**: Automatic call detection and sync
-- **Offline Support**: Local storage with cloud synchronization
+### 📊 **Analytics & Insights**
+- **User Statistics**: Call limits, usage tracking, and analytics
+- **Organization Management**: Multi-tenant organization support
+- **Subscription Plans**: Free, Pro, Business, Enterprise tiers
+- **Usage Monitoring**: Real-time usage tracking and limits
 
 ## 🏗️ **Tech Stack**
 
-| Component | Technology |
-|-----------|------------|
-| **Backend** | Node.js, Express.js |
-| **Database** | MongoDB Atlas |
-| **Mobile** | Android (Java) |
-| **AI/ML** | OpenAI Whisper, GPT-4 |
-| **Deployment** | Vercel (Backend), Google Play Store (Mobile) |
-| **Version Control** | Git, GitHub |
+| Component | Technology | Status |
+|-----------|------------|--------|
+| **Backend** | Node.js 18+, Express.js 5 | ✅ Production |
+| **Database** | MongoDB Atlas | ✅ Connected |
+| **Authentication** | JWT + BCrypt | ✅ Implemented |
+| **Deployment** | Vercel Serverless | ✅ Live |
+| **Security** | CORS, Input Validation | ✅ Configured |
+| **Environment** | Production Ready | ✅ Deployed |
 
 ## 🚀 **Quick Start**
 
 ### Prerequisites
 - Node.js 16+ 
-- MongoDB (local or Atlas)
-- Android Studio (for mobile development)
+- MongoDB Atlas account
+- Vercel account (for deployment)
 
-### Backend Setup
+### Local Development Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/arsalan507/telecrm.git
-cd telecrm
+git clone https://github.com/arsalan507/calltrackerpro-backend.git
+cd calltrackerpro-backend
 
 # Install dependencies
 npm install
 
-# Set up environment variables
+# Configure environment variables
 cp .env.example .env
-# Edit .env with your MongoDB connection string
-
-# Start the development server
-npm start
+# Edit .env with your configuration
 ```
 
-### Environment Variables
+### Environment Configuration
 
-Create a `.env` file in the root directory:
+Create a `.env` file:
 
 ```env
-# Database Configuration
-MONGODB_URI=mongodb://localhost:27017/calltrackerpro
-# For production: mongodb+srv://username:password@cluster.mongodb.net/calltrackerpro
+# Production MongoDB Atlas Connection
+MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/telecrm?retryWrites=true&w=majority&appName=Cluster0
+
+# JWT Security
+JWT_SECRET=your_super_secure_jwt_secret_key_here
 
 # Server Configuration
+NODE_ENV=production
 PORT=5000
-NODE_ENV=development
+```
 
-# AI Services (Optional - for AI features)
-OPENAI_API_KEY=your_openai_api_key_here
+### Start Development Server
 
-# JWT Secret (Generate a secure random string)
-JWT_SECRET=your_jwt_secret_here
+```bash
+# Development mode
+npm run dev
+
+# Production mode
+npm start
 ```
 
 ## 📡 **API Endpoints**
 
-### Call Logs Management
+### 🔐 **Authentication**
+```http
+POST   /api/auth/register           # User registration
+POST   /api/auth/login              # User login
+POST   /api/auth/check-email        # Check email availability
+GET    /api/auth/debug              # Debug endpoint
+GET    /api/auth/test               # Test auth system
+```
+
+### 📞 **Call Management**
 ```http
 GET    /api/call-logs/test          # Test endpoint
-POST   /api/call-logs              # Create new call log
-GET    /api/call-logs              # Fetch all call logs
-GET    /api/call-logs/:id          # Get single call log
-PUT    /api/call-logs/:id          # Update call log
-DELETE /api/call-logs/:id          # Delete call log
-POST   /api/call-logs/bulk         # Bulk sync call logs
+POST   /api/call-logs               # Create call log
+GET    /api/call-logs               # Fetch all call logs (authenticated)
+GET    /api/call-logs/:id           # Get single call log
+PUT    /api/call-logs/:id           # Update call log
+DELETE /api/call-logs/:id           # Delete call log
+POST   /api/call-logs/bulk          # Bulk sync call logs
 ```
 
-### Contact Management
+### 👥 **User & Organization Management**
 ```http
-GET    /api/contacts               # Fetch all contacts
-POST   /api/contacts               # Create new contact
+GET    /api/auth/profile            # Get user profile (authenticated)
+PUT    /api/auth/profile            # Update user profile
+GET    /api/users/organization      # Get organization users
+POST   /api/users/invite            # Invite team members
 ```
 
-### Analytics
-```http
-GET    /api/call-logs/analytics/stats    # Get call statistics
-GET    /api/call-logs/search?q=query     # Search call logs
+## 📊 **User Registration Example**
+
+```json
+POST /api/auth/register
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john@company.com",
+  "phone": "1234567890",
+  "organizationName": "Acme Corp",
+  "password": "securepassword123"
+}
 ```
 
-## 🔄 **Development Status**
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Account created successfully! Welcome to CallTracker Pro.",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "60d5ecb74b24c1001f5e4e1a",
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john@company.com",
+    "organizationName": "Acme Corp",
+    "role": "admin",
+    "subscriptionPlan": "free",
+    "callLimit": 50,
+    "callsUsed": 0
+  },
+  "expiresIn": 604800
+}
+```
 
-### ✅ **Completed Features**
-- [x] **Backend API Foundation** - Express server with MongoDB integration
-- [x] **Call Logs Management** - Complete CRUD operations
-- [x] **Contact Management** - Basic contact handling
-- [x] **Database Schema** - AI-ready data structure
-- [x] **API Documentation** - Comprehensive endpoint documentation
-- [x] **Android UI** - Working mobile interface with permissions
-- [x] **Vercel Deployment** - Live backend deployment
+## 🔄 **Current Status**
 
-### 🚧 **In Progress**
-- [ ] **Real-time Call Detection** - Android SIM integration
-- [ ] **API Integration** - Complete mobile-to-backend sync
-- [ ] **Error Handling** - Comprehensive error management
+### ✅ **Production Ready Features**
+- [x] **Backend API Infrastructure** - Complete Express.js server
+- [x] **MongoDB Atlas Integration** - Cloud database with connection pooling
+- [x] **User Authentication System** - JWT-based auth with registration/login
+- [x] **Password Security** - BCrypt hashing with secure salt rounds
+- [x] **Call Logs Management** - Full CRUD operations
+- [x] **Error Handling** - Comprehensive error management
+- [x] **Input Validation** - Request validation and sanitization
+- [x] **Vercel Deployment** - Production deployment with environment variables
+- [x] **CORS Configuration** - Cross-origin resource sharing
+- [x] **Environment Management** - Production/development configurations
 
-### 📋 **Upcoming Features**
+### 🚧 **In Development**
+- [ ] **Mobile App Integration** - Android app API integration
+- [ ] **Team Management** - Multi-user organization features
+- [ ] **Advanced Analytics** - Call statistics and reporting
+- [ ] **Rate Limiting** - API rate limiting implementation
+
+### 📋 **Future Enhancements**
 - [ ] **AI Integration** - Voice transcription and sentiment analysis
-- [ ] **Analytics Dashboard** - Web-based management interface
-- [ ] **Multi-tenant Support** - SaaS architecture implementation
-- [ ] **Advanced Security** - JWT authentication and API rate limiting
+- [ ] **Real-time Features** - WebSocket support for live updates
+- [ ] **Advanced Security** - OAuth2 integration, 2FA
+- [ ] **API Documentation** - Swagger/OpenAPI documentation
+- [ ] **Monitoring** - Application performance monitoring
 
-## 🌟 **SaaS Roadmap**
+## 🌟 **Deployment Architecture**
 
-### **Phase 1: Core Features** *(Week 1-2)*
-- Complete call logging API
-- Android app development
-- Basic dashboard
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Android App   │────│  Vercel Backend  │────│  MongoDB Atlas  │
+│                 │    │                  │    │                 │
+│ • User Auth     │    │ • JWT Auth       │    │ • User Data     │
+│ • Call Logging  │    │ • API Endpoints  │    │ • Call Logs     │
+│ • Local Storage │    │ • Validation     │    │ • Organizations │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
 
-### **Phase 2: AI Integration** *(Week 3-4)*
-- Voice transcription (OpenAI Whisper)
-- Sentiment analysis
-- Smart insights and auto-tagging
+## 💰 **Subscription Plans**
 
-### **Phase 3: SaaS Platform** *(Month 2)*
-- Multi-tenant architecture
-- Subscription billing integration
-- Advanced analytics and reporting
-- API rate limiting and authentication
-
-## 💰 **Pricing Strategy**
-
-| Plan | Price | Features |
-|------|-------|----------|
-| **Free** | $0/month | 100 calls/month, Basic analytics |
-| **Pro** | $29/month | 1,000 calls + AI features |
-| **Business** | $99/month | 10,000 calls + Advanced analytics |
-| **Enterprise** | $299/month | Unlimited + Custom integrations |
-
-## 🎯 **Market Opportunity**
-
-- **Call Center Software Market**: $24+ billion globally
-- **Small Business CRM**: High demand for affordable solutions
-- **AI-Powered Insights**: Premium positioning opportunity
-
-## 📱 **Mobile App**
-
-The Android companion app provides:
-- **Automatic Call Detection**: Background monitoring of incoming/outgoing calls
-- **Contact Integration**: Smart matching with phone contacts
-- **Offline Sync**: Local storage with cloud synchronization
-- **Real-time Analytics**: Live call statistics and insights
+| Plan | Price | Call Limit | Features |
+|------|-------|------------|----------|
+| **Free** | $0/month | 50 calls | Basic logging, 1 user |
+| **Pro** | $29/month | 1,000 calls | AI insights, 5 users |
+| **Business** | $99/month | 10,000 calls | Team management, Analytics |
+| **Enterprise** | $299/month | Unlimited | Custom integrations, Priority support |
 
 ## 🔧 **Development Commands**
 
 ```bash
 # Development
-npm run dev          # Start development server with hot reload
-npm run start        # Start production server
-npm run test         # Run test suite
+npm run dev          # Start with nodemon (hot reload)
+npm start            # Start production server
+npm run test         # Run authentication tests
 
-# Database
-npm run seed         # Seed database with sample data
-npm run migrate      # Run database migrations
+# Database Testing
+node test-mongo.js   # Test MongoDB connection
+node test/test-auth.js  # Test authentication system
 
 # Deployment
-npm run build        # Build for production
-npm run deploy       # Deploy to Vercel
+vercel --prod        # Deploy to Vercel production
+vercel env ls        # List environment variables
 ```
+
+## 🛠️ **Project Structure**
+
+```
+CallTrackerPro/
+├── api/
+│   └── index.js           # Vercel serverless entry point
+├── config/
+│   └── database.js        # MongoDB Atlas connection
+├── models/
+│   ├── User.js           # User schema with auth
+│   ├── CallLog.js        # Call logging schema
+│   ├── Contact.js        # Contact management
+│   └── Organization.js   # Organization model
+├── routes/
+│   ├── auth.js           # Authentication endpoints
+│   ├── callLogs.js       # Call management endpoints
+│   └── contacts.js       # Contact endpoints
+├── middleware/
+│   └── auth.js           # JWT authentication middleware
+├── test/
+│   └── test-auth.js      # Authentication tests
+├── app.js                # Express application setup
+├── server.js             # Local development server
+├── vercel.json           # Vercel deployment config
+└── package.json          # Dependencies and scripts
+```
+
+## 🔒 **Security Features**
+
+- **Password Hashing**: BCrypt with 12 salt rounds
+- **JWT Tokens**: 7-day expiration with secure secret
+- **Input Validation**: Email format, password strength validation
+- **Error Handling**: Secure error messages without data leakage
+- **CORS Configuration**: Proper cross-origin request handling
+- **Environment Security**: Production environment variable management
+
+## 🚀 **Vercel Deployment**
+
+This project is optimized for Vercel serverless deployment:
+
+- **Serverless Functions**: API routes as serverless functions
+- **Environment Variables**: Secure environment configuration
+- **MongoDB Atlas**: Cloud database with global availability
+- **Production Optimization**: Connection pooling and timeout management
 
 ## 🤝 **Contributing**
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+## 📞 **Support**
+
+- **Email**: arsalanahmed507@gmail.com
+- **GitHub Issues**: [Report bugs](https://github.com/arsalan507/calltrackerpro-backend/issues)
+- **Documentation**: API documentation available at deployed endpoint
 
 ## 📄 **License**
 
@@ -220,13 +305,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 **Acknowledgments**
 
-- OpenAI for AI integration capabilities
-- MongoDB for robust database solutions
-- Vercel for seamless deployment
-- Android community for mobile development resources
+- MongoDB Atlas for reliable cloud database
+- Vercel for seamless serverless deployment
+- JWT.io for authentication standards
+- Express.js community for robust web framework
 
 ---
 
-**Built with ❤️ for modern businesses**
+**🎯 Ready for Production | 🔐 Secure by Design | 📱 Mobile Ready**
 
-*CallTracker Pro - Transforming business communications with AI-powered intelligence*
+*CallTracker Pro - Professional call management with enterprise-grade security*
