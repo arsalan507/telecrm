@@ -49,19 +49,114 @@ const userSchema = new mongoose.Schema({
     maxlength: [100, 'Organization name cannot exceed 100 characters']
   },
   
-  // Role & Permissions
+  // Enhanced Role & Permissions System
   role: {
     type: String,
-    enum: ['admin', 'manager', 'agent', 'viewer'],
-    default: 'admin' // First user becomes admin
+    enum: ['super_admin', 'org_admin', 'manager', 'agent', 'viewer'],
+    default: 'org_admin', // First user becomes organization admin
+    index: true
   },
   permissions: [{
     type: String,
     enum: [
+      // Organization Management
+      'manage_organization', 'manage_billing', 'manage_subscription',
+      
+      // Team Management  
+      'manage_teams', 'manage_team_members', 'view_team_analytics',
+      
+      // User Management
+      'invite_users', 'manage_user_roles', 'view_all_users',
+      
+      // Existing permissions (enhanced)
       'manage_team', 'view_all_calls', 'manage_leads', 
-      'export_data', 'manage_settings', 'view_analytics'
+      'export_data', 'manage_settings', 'view_analytics',
+      
+      // Contact & Lead Management
+      'view_all_contacts', 'manage_all_contacts', 'view_team_contacts',
+      'manage_team_contacts', 'view_own_contacts', 'manage_own_contacts',
+      
+      // Call Management
+      'view_all_call_logs', 'manage_all_call_logs', 'view_team_call_logs',
+      'manage_team_call_logs', 'view_own_call_logs', 'manage_own_call_logs',
+      
+      // Analytics & Reporting
+      'view_organization_analytics', 'view_team_analytics', 'view_own_analytics',
+      'export_organization_data', 'export_team_data', 'export_own_data',
+      
+      // System Administration
+      'manage_system_settings', 'view_system_logs', 'manage_integrations'
     ],
-    default: ['manage_team', 'view_all_calls', 'manage_leads', 'export_data', 'manage_settings', 'view_analytics']
+    default: function() {
+      // Set default permissions based on role
+      switch(this.role) {
+        case 'super_admin':
+          return [
+            'manage_organization', 'manage_billing', 'manage_subscription',
+            'manage_teams', 'manage_team_members', 'view_team_analytics',
+            'invite_users', 'manage_user_roles', 'view_all_users',
+            'manage_team', 'view_all_calls', 'manage_leads', 'export_data',
+            'manage_settings', 'view_analytics', 'view_all_contacts',
+            'manage_all_contacts', 'view_all_call_logs', 'manage_all_call_logs',
+            'view_organization_analytics', 'export_organization_data',
+            'manage_system_settings', 'view_system_logs', 'manage_integrations'
+          ];
+        case 'org_admin':
+          return [
+            'manage_organization', 'manage_billing', 'manage_subscription',
+            'manage_teams', 'manage_team_members', 'view_team_analytics',
+            'invite_users', 'manage_user_roles', 'view_all_users',
+            'manage_team', 'view_all_calls', 'manage_leads', 'export_data',
+            'manage_settings', 'view_analytics', 'view_all_contacts',
+            'manage_all_contacts', 'view_all_call_logs', 'manage_all_call_logs',
+            'view_organization_analytics', 'export_organization_data'
+          ];
+        case 'manager':
+          return [
+            'manage_teams', 'manage_team_members', 'view_team_analytics',
+            'invite_users', 'view_all_users', 'manage_team', 'view_all_calls',
+            'manage_leads', 'export_data', 'view_analytics', 'view_team_contacts',
+            'manage_team_contacts', 'view_team_call_logs', 'manage_team_call_logs',
+            'view_team_analytics', 'export_team_data'
+          ];
+        case 'agent':
+          return [
+            'manage_leads', 'view_own_contacts', 'manage_own_contacts',
+            'view_own_call_logs', 'manage_own_call_logs', 'view_own_analytics',
+            'export_own_data'
+          ];
+        case 'viewer':
+          return [
+            'view_own_contacts', 'view_own_call_logs', 'view_own_analytics'
+          ];
+        default:
+          return ['view_own_contacts', 'view_own_call_logs'];
+      }
+    }
+  }],
+  
+  // Team-specific permissions (for users in multiple teams)
+  teamPermissions: [{
+    teamId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Team'
+    },
+    role: {
+      type: String,
+      enum: ['manager', 'agent', 'viewer'],
+      default: 'agent'
+    },
+    permissions: [{
+      type: String
+    }],
+    joinedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
   }],
   
   // Team & Organization References
@@ -143,8 +238,12 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Indexes for better performance
+// Enhanced indexes for multi-tenant optimization
 userSchema.index({ organizationName: 1 });
+userSchema.index({ organizationId: 1, role: 1 });
+userSchema.index({ organizationId: 1, isActive: 1 });
+userSchema.index({ organizationId: 1, teamId: 1 });
+userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ createdAt: -1 });
 
 // Hash password before saving
@@ -223,6 +322,188 @@ userSchema.statics.findByEmail = function(email) {
 userSchema.statics.emailExists = async function(email) {
   const user = await this.findOne({ email: email.toLowerCase() });
   return !!user;
+};
+
+// Enhanced static methods for multi-tenant operations
+userSchema.statics.findByOrganization = function(organizationId, includeInactive = false) {
+  const query = { organizationId };
+  if (!includeInactive) {
+    query.isActive = true;
+  }
+  return this.find(query).select('-password');
+};
+
+userSchema.statics.findByRole = function(organizationId, role) {
+  return this.find({ organizationId, role, isActive: true }).select('-password');
+};
+
+userSchema.statics.findByTeam = function(teamId, includeInactive = false) {
+  const query = { teamId };
+  if (!includeInactive) {
+    query.isActive = true;
+  }
+  return this.find(query).select('-password');
+};
+
+userSchema.statics.countByOrganization = function(organizationId) {
+  return this.countDocuments({ organizationId, isActive: true });
+};
+
+userSchema.statics.countByRole = function(organizationId, role) {
+  return this.countDocuments({ organizationId, role, isActive: true });
+};
+
+// Enhanced instance methods for permission checking
+userSchema.methods.hasPermission = function(permission) {
+  // Super admin has all permissions
+  if (this.role === 'super_admin') {
+    return true;
+  }
+  
+  return this.permissions.includes(permission);
+};
+
+userSchema.methods.hasAnyPermission = function(permissions) {
+  if (this.role === 'super_admin') {
+    return true;
+  }
+  
+  return permissions.some(permission => this.permissions.includes(permission));
+};
+
+userSchema.methods.hasAllPermissions = function(permissions) {
+  if (this.role === 'super_admin') {
+    return true;
+  }
+  
+  return permissions.every(permission => this.permissions.includes(permission));
+};
+
+userSchema.methods.canAccessOrganization = function(organizationId) {
+  return this.role === 'super_admin' || 
+         this.organizationId.toString() === organizationId.toString();
+};
+
+userSchema.methods.canManageUser = function(targetUser) {
+  // Super admin can manage anyone
+  if (this.role === 'super_admin') {
+    return true;
+  }
+  
+  // Must be in same organization
+  if (this.organizationId.toString() !== targetUser.organizationId.toString()) {
+    return false;
+  }
+  
+  // Org admin can manage everyone in their org except super admins
+  if (this.role === 'org_admin' && targetUser.role !== 'super_admin') {
+    return true;
+  }
+  
+  // Managers can manage agents and viewers in their team
+  if (this.role === 'manager' && 
+      ['agent', 'viewer'].includes(targetUser.role) &&
+      this.teamId && targetUser.teamId &&
+      this.teamId.toString() === targetUser.teamId.toString()) {
+    return true;
+  }
+  
+  return false;
+};
+
+userSchema.methods.getTeamRole = function(teamId) {
+  const teamPermission = this.teamPermissions.find(tp => 
+    tp.teamId.toString() === teamId.toString() && tp.isActive
+  );
+  return teamPermission ? teamPermission.role : null;
+};
+
+userSchema.methods.hasTeamPermission = function(teamId, permission) {
+  if (this.role === 'super_admin') return true;
+  
+  const teamPermission = this.teamPermissions.find(tp => 
+    tp.teamId.toString() === teamId.toString() && tp.isActive
+  );
+  
+  return teamPermission ? teamPermission.permissions.includes(permission) : false;
+};
+
+userSchema.methods.addToTeam = function(teamId, role = 'agent', permissions = []) {
+  // Remove existing team permission if exists
+  this.teamPermissions = this.teamPermissions.filter(tp => 
+    tp.teamId.toString() !== teamId.toString()
+  );
+  
+  // Add new team permission
+  this.teamPermissions.push({
+    teamId,
+    role,
+    permissions,
+    joinedAt: new Date(),
+    isActive: true
+  });
+  
+  return this.save();
+};
+
+userSchema.methods.removeFromTeam = function(teamId) {
+  const teamPermission = this.teamPermissions.find(tp => 
+    tp.teamId.toString() === teamId.toString()
+  );
+  
+  if (teamPermission) {
+    teamPermission.isActive = false;
+  }
+  
+  return this.save();
+};
+
+userSchema.methods.updateRole = function(newRole, newPermissions = null) {
+  this.role = newRole;
+  
+  if (newPermissions) {
+    this.permissions = newPermissions;
+  } else {
+    // Set default permissions based on new role
+    this.permissions = this.schema.paths.permissions.default.call({ role: newRole });
+  }
+  
+  return this.save();
+};
+
+userSchema.methods.getAccessScope = function() {
+  // Define what data this user can access based on role
+  const scope = {
+    organizationId: this.organizationId,
+    canViewAll: false,
+    canViewTeam: false,
+    canViewOwn: true,
+    teamIds: [],
+    userId: this._id
+  };
+  
+  if (['super_admin', 'org_admin'].includes(this.role)) {
+    scope.canViewAll = true;
+  } else if (this.role === 'manager') {
+    scope.canViewTeam = true;
+    scope.teamIds = [this.teamId, ...this.teamPermissions
+      .filter(tp => tp.isActive && tp.role === 'manager')
+      .map(tp => tp.teamId)
+    ].filter(Boolean);
+  } else {
+    // Agents and viewers - own data only
+    scope.canViewOwn = true;
+  }
+  
+  return scope;
+};
+
+userSchema.methods.getSafeProfile = function() {
+  const profile = this.toObject();
+  delete profile.password;
+  delete profile.passwordResetToken;
+  delete profile.emailVerificationToken;
+  return profile;
 };
 
 module.exports = mongoose.model('User', userSchema);

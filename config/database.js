@@ -26,14 +26,18 @@ const connectDB = async () => {
         useNewUrlParser: true,
         useUnifiedTopology: true,
         // Serverless optimizations
-        maxPoolSize: 5,
-        minPoolSize: 1,
-        maxIdleTimeMS: 30000,
+        maxPoolSize: 8,
+        minPoolSize: 2,
+        maxIdleTimeMS: 10000,
         serverSelectionTimeoutMS: 30000,
         socketTimeoutMS: 45000,
-        // Remove these unsupported options:
-        // bufferCommands: false,
-        // bufferMaxEntries: 0,
+        bufferCommands: false,
+        bufferMaxEntries: 0,
+        // Additional optimizations for multi-tenant SaaS
+        retryWrites: true,
+        w: 'majority',
+        readPreference: 'primary',
+        heartbeatFrequencyMS: 10000
       };
     } else {
       // Local development: Try localhost connections

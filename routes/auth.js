@@ -46,7 +46,7 @@ router.get('/debug', async (req, res) => {
 });
 
 // @route   POST /api/auth/register
-// @desc    Register new user
+// @desc    Register new user with auto-organization creation
 // @access  Public
 router.post('/register', async (req, res) => {
     try {
@@ -96,24 +96,118 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Create user
+        // Check if organization with similar name exists
+        const Organization = require('../models/Organization');
+        const existingOrganization = await Organization.findOne({ 
+            name: { $regex: new RegExp(`^${organizationName}$`, 'i') }
+        });
+
+        let organization;
+        if (existingOrganization) {
+            // If organization exists, user might be joining an existing org
+            console.log('⚠️ Organization already exists:', organizationName);
+            return res.status(409).json({
+                success: false,
+                message: 'Organization with this name already exists. Please use the invitation system to join an existing organization.',
+                organizationExists: true
+            });
+        } else {
+            // Create new organization
+            console.log('🏢 Creating new organization:', organizationName);
+            organization = new Organization({
+                name: organizationName,
+                owner: null, // Will be set after user creation
+                description: `${organizationName} - CallTracker Pro Organization`,
+                subscriptionPlan: 'free',
+                subscriptionStatus: 'active',
+                isActive: true,
+                userLimit: 5,
+                callLimit: 50,
+                contactLimit: 100,
+                teamLimit: 1,
+                features: {
+                    advancedAnalytics: false,
+                    customBranding: false,
+                    apiAccess: false,
+                    prioritySupport: false,
+                    dataExport: true,
+                    teamManagement: true,
+                    callRecording: false,
+                    integrations: false
+                },
+                settings: {
+                    timezone: 'UTC',
+                    dateFormat: 'YYYY-MM-DD',
+                    timeFormat: '24h',
+                    currency: 'USD',
+                    language: 'en',
+                    workingHours: {
+                        start: '09:00',
+                        end: '17:00',
+                        timezone: 'UTC'
+                    },
+                    callSettings: {
+                        autoRecord: false,
+                        defaultDuration: 300,
+                        enableVoicemail: true
+                    },
+                    notifications: {
+                        email: true,
+                        browser: true,
+                        mobile: true
+                    }
+                },
+                branding: {
+                    primaryColor: '#007bff',
+                    secondaryColor: '#6c757d',
+                    logo: null,
+                    customDomain: null
+                },
+                billing: {
+                    email: email.toLowerCase(),
+                    address: null,
+                    paymentMethod: null,
+                    subscriptionStartDate: new Date(),
+                    nextBillingDate: null
+                },
+                metadata: {
+                    signupSource: 'android',
+                    ipAddress: req.ip || 'unknown',
+                    userAgent: req.get('User-Agent') || 'unknown'
+                }
+            });
+
+            await organization.save();
+            console.log('✅ Organization created successfully:', organization.name);
+        }
+
+        // Create user with organization reference
         const userData = {
             firstName,
             lastName,
             email: email.toLowerCase(),
             phone: phone.replace(/\D/g, ''), // Clean phone number
-            organizationName,
+            organizationId: organization._id,
+            organizationName: organization.name,
             password, // Will be hashed by pre-save hook
-            role: 'admin',
+            role: 'org_admin', // First user becomes org admin
             isActive: true,
             signupSource: 'android',
-            permissions: ['manage_team', 'view_all_calls', 'manage_leads', 'export_data', 'manage_settings', 'view_analytics']
+            subscriptionPlan: organization.subscriptionPlan,
+            callLimit: organization.callLimit,
+            callsUsed: 0
         };
 
         const user = new User(userData);
         await user.save();
 
+        // Update organization owner
+        organization.owner = user._id;
+        organization.ownerEmail = user.email;
+        await organization.save();
+
         console.log('✅ User created successfully:', user.email);
+        console.log('✅ Organization ownership assigned');
 
         // Generate token
         const token = user.generateAuthToken();
@@ -121,7 +215,7 @@ router.post('/register', async (req, res) => {
         // Response
         res.status(201).json({
             success: true,
-            message: 'Account created successfully! Welcome to CallTracker Pro.',
+            message: `Welcome to CallTracker Pro! Your organization "${organization.name}" has been created successfully.`,
             token,
             user: {
                 id: user._id,
@@ -130,6 +224,7 @@ router.post('/register', async (req, res) => {
                 fullName: user.fullName,
                 email: user.email,
                 phone: user.phone,
+                organizationId: user.organizationId,
                 organizationName: user.organizationName,
                 role: user.role,
                 permissions: user.permissions,
@@ -138,6 +233,19 @@ router.post('/register', async (req, res) => {
                 callsUsed: user.callsUsed,
                 isActive: user.isActive,
                 createdAt: user.createdAt
+            },
+            organization: {
+                id: organization._id,
+                name: organization.name,
+                subscriptionPlan: organization.subscriptionPlan,
+                subscriptionStatus: organization.subscriptionStatus,
+                limits: {
+                    users: organization.userLimit,
+                    calls: organization.callLimit,
+                    contacts: organization.contactLimit,
+                    teams: organization.teamLimit
+                },
+                features: organization.features
             },
             expiresIn: 604800 // 7 days
         });
