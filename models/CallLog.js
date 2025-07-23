@@ -103,6 +103,41 @@ const callLogSchema = new mongoose.Schema({
         format: String // mp3, wav, etc.
     },
     
+    // Ticket Integration
+    ticketId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Ticket',
+        index: true, sparse: true
+    },
+    hasTicket: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    ticketAutoCreated: {
+        type: Boolean,
+        default: false
+    },
+    
+    // Multi-tenant Support
+    organizationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization',
+        required: true,
+        index: true
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true
+    },
+    teamId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Team',
+        index: true, sparse: true
+    },
+    
     // Metadata
     source: {
         type: String,
@@ -127,6 +162,11 @@ callLogSchema.index({ phoneNumber: 1, timestamp: -1 });
 callLogSchema.index({ callType: 1, timestamp: -1 });
 callLogSchema.index({ 'sentiment.label': 1 });
 callLogSchema.index({ leadStatus: 1 });
+callLogSchema.index({ organizationId: 1, timestamp: -1 });
+callLogSchema.index({ organizationId: 1, userId: 1, timestamp: -1 });
+callLogSchema.index({ organizationId: 1, hasTicket: 1 });
+callLogSchema.index({ ticketId: 1 }, { sparse: true });
+callLogSchema.index({ teamId: 1, timestamp: -1 }, { sparse: true });
 
 // Update the updatedAt field before saving
 callLogSchema.pre('save', function(next) {
@@ -172,33 +212,72 @@ callLogSchema.methods.updateSentiment = function(sentimentData) {
     return this.save();
 };
 
+callLogSchema.methods.linkToTicket = function(ticketId, autoCreated = false) {
+    this.ticketId = ticketId;
+    this.hasTicket = true;
+    this.ticketAutoCreated = autoCreated;
+    return this.save();
+};
+
+callLogSchema.methods.unlinkFromTicket = function() {
+    this.ticketId = undefined;
+    this.hasTicket = false;
+    this.ticketAutoCreated = false;
+    return this.save();
+};
+
+callLogSchema.methods.createTicketFromCall = async function(ticketData = {}) {
+    const Ticket = mongoose.model('Ticket');
+    
+    const defaultTicketData = {
+        title: `Call from ${this.contactName || this.phoneNumber}`,
+        description: `Ticket auto-created from call log.\n\nCall Details:\n- Phone: ${this.phoneNumber}\n- Duration: ${this.durationFormatted}\n- Type: ${this.callType}\n- Date: ${this.timestamp.toLocaleString()}`,
+        customerName: this.contactName || 'Unknown',
+        customerPhone: this.phoneNumber,
+        source: 'phone_call',
+        organizationId: this.organizationId,
+        createdBy: this.userId,
+        teamId: this.teamId,
+        callLogIds: [this._id],
+        ...ticketData
+    };
+    
+    const ticket = await Ticket.create(defaultTicketData);
+    await this.linkToTicket(ticket._id, true);
+    
+    return ticket;
+};
+
 // Static methods for analytics
-callLogSchema.statics.getCallStats = function(dateRange) {
+callLogSchema.statics.getCallStats = function(organizationId, dateRange = {}) {
+    const matchQuery = { organizationId, isDeleted: false };
+    
+    if (dateRange.start && dateRange.end) {
+        matchQuery.timestamp = {
+            $gte: dateRange.start,
+            $lte: dateRange.end
+        };
+    }
+    
     return this.aggregate([
-        {
-            $match: {
-                timestamp: {
-                    $gte: dateRange.start,
-                    $lte: dateRange.end
-                },
-                isDeleted: false
-            }
-        },
+        { $match: matchQuery },
         {
             $group: {
                 _id: '$callType',
                 count: { $sum: 1 },
                 totalDuration: { $sum: '$duration' },
-                avgDuration: { $avg: '$duration' }
+                avgDuration: { $avg: '$duration' },
+                withTickets: { $sum: { $cond: ['$hasTicket', 1, 0] } }
             }
         }
     ]);
 };
 
-callLogSchema.statics.getSentimentTrends = function() {
+callLogSchema.statics.getSentimentTrends = function(organizationId) {
     return this.aggregate([
         {
             $match: {
+                organizationId,
                 'sentiment.label': { $exists: true },
                 isDeleted: false
             }
@@ -208,6 +287,63 @@ callLogSchema.statics.getSentimentTrends = function() {
                 _id: '$sentiment.label',
                 count: { $sum: 1 },
                 avgScore: { $avg: '$sentiment.score' }
+            }
+        }
+    ]);
+};
+
+callLogSchema.statics.findByOrganization = function(organizationId, filters = {}) {
+    const query = { organizationId, isDeleted: false, ...filters };
+    return this.find(query)
+        .populate('ticketId', 'ticketNumber title status priority')
+        .populate('userId', 'firstName lastName email')
+        .sort({ timestamp: -1 });
+};
+
+callLogSchema.statics.findCallsWithoutTickets = function(organizationId, dateRange = {}) {
+    const matchQuery = { 
+        organizationId, 
+        hasTicket: false, 
+        isDeleted: false,
+        callType: { $in: ['incoming', 'outgoing'] } // Exclude missed calls
+    };
+    
+    if (dateRange.start && dateRange.end) {
+        matchQuery.timestamp = {
+            $gte: dateRange.start,
+            $lte: dateRange.end
+        };
+    }
+    
+    return this.find(matchQuery)
+        .sort({ timestamp: -1 })
+        .limit(100);
+};
+
+callLogSchema.statics.getTicketCreationStats = function(organizationId, dateRange = {}) {
+    const matchQuery = { organizationId, isDeleted: false };
+    
+    if (dateRange.start && dateRange.end) {
+        matchQuery.timestamp = {
+            $gte: dateRange.start,
+            $lte: dateRange.end
+        };
+    }
+    
+    return this.aggregate([
+        { $match: matchQuery },
+        {
+            $group: {
+                _id: null,
+                totalCalls: { $sum: 1 },
+                callsWithTickets: { $sum: { $cond: ['$hasTicket', 1, 0] } },
+                autoCreatedTickets: { $sum: { $cond: ['$ticketAutoCreated', 1, 0] } },
+                ticketConversionRate: { 
+                    $multiply: [
+                        { $divide: [{ $sum: { $cond: ['$hasTicket', 1, 0] } }, { $sum: 1 }] },
+                        100
+                    ]
+                }
             }
         }
     ]);

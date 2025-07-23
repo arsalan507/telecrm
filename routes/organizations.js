@@ -650,4 +650,66 @@ router.put('/:organizationId/subscription',
     }
 );
 
+// @route   PUT /api/organizations/initial-super-admin/:userId
+// @desc    Promote user to super admin (for initial setup only)
+// @access  Authenticated (with special password)
+router.put('/initial-super-admin/:userId',
+    authenticate,
+    async (req, res) => {
+        try {
+            const { userId } = req.params;
+            const { adminPassword } = req.body;
+
+            // Security check: Use a special password for initial setup
+            if (adminPassword !== 'CallTracker2024!Initial') {
+                return res.status(403).json({ 
+                    success: false,
+                    message: 'Invalid admin password' 
+                });
+            }
+
+            // Find the user to promote
+            const user = await User.findById(userId);
+            if (!user) {
+                return res.status(404).json({ 
+                    success: false,
+                    message: 'User not found' 
+                });
+            }
+
+            // Check if this is really the first super admin (security measure)
+            const existingSuperAdmin = await User.findOne({ role: 'super_admin' });
+            if (existingSuperAdmin) {
+                return res.status(400).json({ 
+                    success: false,
+                    message: 'Super admin already exists' 
+                });
+            }
+
+            // Update user role to super_admin
+            user.role = 'super_admin';
+            await user.save();
+
+            res.json({
+                success: true,
+                message: 'User promoted to super admin successfully',
+                data: {
+                    id: user._id,
+                    email: user.email,
+                    role: user.role,
+                    firstName: user.firstName,
+                    lastName: user.lastName
+                }
+            });
+
+        } catch (error) {
+            console.error('Error promoting user to super admin:', error);
+            res.status(500).json({ 
+                success: false,
+                message: 'Internal server error' 
+            });
+        }
+    }
+);
+
 module.exports = router;

@@ -63,19 +63,8 @@ const auth = async (req, res, next) => {
       });
     }
 
-    // Add user info to request object
-    req.user = {
-      userId: user._id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      permissions: user.permissions || [],
-      organizationId: user.organizationId ? user.organizationId._id : null,
-      subscriptionPlan: user.subscriptionPlan,
-      callLimit: user.callLimit,
-      callsUsed: user.callsUsed
-    };
+    // Add full user object to request (for accessing methods)
+    req.user = user;
     
     // Add organization info if available
     if (user.organizationId) {
@@ -128,7 +117,8 @@ const checkPermission = (requiredPermission) => {
       });
     }
 
-    if (!req.user.permissions.includes(requiredPermission)) {
+    // Use the user's hasPermission method for more comprehensive checking
+    if (!req.user.hasPermission(requiredPermission)) {
       return res.status(403).json({
         success: false,
         message: `Access denied. Required permission: ${requiredPermission}`
@@ -137,6 +127,82 @@ const checkPermission = (requiredPermission) => {
     
     next();
   };
+};
+
+/**
+ * Middleware to check if user has any of the required permissions
+ * @param {Array} requiredPermissions - Array of permissions (user needs at least one)
+ * @returns {Function} Express middleware function
+ */
+const checkAnyPermission = (requiredPermissions) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.'
+      });
+    }
+
+    if (!req.user.hasAnyPermission(requiredPermissions)) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. Required permissions: ${requiredPermissions.join(' or ')}`
+      });
+    }
+    
+    next();
+  };
+};
+
+/**
+ * Middleware to check if user has all required permissions
+ * @param {Array} requiredPermissions - Array of permissions (user needs all)
+ * @returns {Function} Express middleware function
+ */
+const checkAllPermissions = (requiredPermissions) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.'
+      });
+    }
+
+    if (!req.user.hasAllPermissions(requiredPermissions)) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. Required permissions: ${requiredPermissions.join(' and ')}`
+      });
+    }
+    
+    next();
+  };
+};
+
+/**
+ * Middleware to check if user can access organization data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
+ */
+const checkOrganizationAccess = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
+
+  const requestedOrgId = req.params.organizationId || req.body.organizationId || req.query.organizationId;
+  
+  if (requestedOrgId && !req.user.canAccessOrganization(requestedOrgId)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Cannot access this organization.'
+    });
+  }
+  
+  next();
 };
 
 /**
@@ -230,7 +296,7 @@ const checkCallLimit = async (req, res, next) => {
     }
 
     // Get latest user data to check current usage
-    const user = await User.findById(req.user.userId).select('callLimit callsUsed');
+    const user = await User.findById(req.user._id).select('callLimit callsUsed');
     
     if (!user) {
       return res.status(404).json({
@@ -310,6 +376,9 @@ const optionalAuth = async (req, res, next) => {
 module.exports = {
   auth,
   checkPermission,
+  checkAnyPermission,
+  checkAllPermissions,
+  checkOrganizationAccess,
   checkRole,
   requireAdmin,
   requireManager,

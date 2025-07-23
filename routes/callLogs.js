@@ -2,7 +2,9 @@ console.log("🛑 callLogs.js is LOADING...");
 
 const express = require('express');
 const router = express.Router();
+const { validationResult, body, param } = require('express-validator');
 const CallLog = require('../models/CallLog');
+const Ticket = require('../models/Ticket');
 const User = require('../models/User');
 const { auth, checkCallLimit, checkPermission, optionalAuth } = require('../middleware/auth');
 
@@ -29,7 +31,9 @@ router.get('/test', (req, res) => {
             'Role-based Access Control',
             'Real-time Analytics',
             'Bulk Import/Export',
-            'Advanced Search'
+            'Advanced Search',
+            'Ticket Integration',
+            'Auto-Ticket Creation'
         ],
         endpoints: [
             'GET /api/call-logs/test (public)',
@@ -43,7 +47,12 @@ router.get('/test', (req, res) => {
             'GET /api/call-logs/recent (authenticated)',
             'GET /api/call-logs/search (authenticated)',
             'GET /api/call-logs/export (authenticated, requires view_analytics)',
-            'POST /api/call-logs/bulk (authenticated, requires manage_leads)'
+            'POST /api/call-logs/bulk (authenticated, requires manage_leads)',
+            'POST /api/call-logs/:id/create-ticket (authenticated)',
+            'PUT /api/call-logs/:id/link-ticket (authenticated)',
+            'DELETE /api/call-logs/:id/unlink-ticket (authenticated)',
+            'GET /api/call-logs/without-tickets (authenticated)',
+            'GET /api/call-logs/ticket-stats (authenticated, requires view_analytics)'
         ]
     });
 });
@@ -936,6 +945,393 @@ router.post('/bulk', auth, checkPermission('manage_leads'), async (req, res) => 
     }
 });
 
-console.log("✅ callLogs.js routes setup complete - All endpoints ready!");
+// ==========================================
+// TICKET INTEGRATION ENDPOINTS
+// ==========================================
+
+// ==========================================
+// POST /api/call-logs/:id/create-ticket - Create ticket from call log
+// ==========================================
+router.post('/:id/create-ticket', auth, param('id').isMongoId(), async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid call log ID',
+                errors: errors.array()
+            });
+        }
+        
+        const user = req.user;
+        const userScope = user.getAccessScope();
+        
+        // Find call log with permission check
+        let query = { _id: req.params.id, organizationId: user.organizationId };
+        
+        if (!userScope.canViewAll && !userScope.canViewTeam) {
+            query.userId = user._id;
+        }
+        
+        const callLog = await CallLog.findOne(query);
+        if (!callLog) {
+            return res.status(404).json({
+                success: false,
+                message: 'Call log not found or access denied'
+            });
+        }
+        
+        // Check if call already has a ticket
+        if (callLog.hasTicket) {
+            return res.status(400).json({
+                success: false,
+                message: 'Call log already has an associated ticket',
+                data: { existingTicketId: callLog.ticketId }
+            });
+        }
+        
+        // Create ticket from call log
+        const ticketData = req.body || {};
+        const ticket = await callLog.createTicketFromCall(ticketData);
+        
+        const populatedTicket = await Ticket.findById(ticket._id)
+            .populate('assignedTo', 'firstName lastName email')
+            .populate('createdBy', 'firstName lastName email');
+        
+        console.log(`✅ Created ticket ${ticket.ticketNumber} from call log ${callLog._id}`);
+        
+        res.status(201).json({
+            success: true,
+            message: 'Ticket created successfully from call log',
+            data: { 
+                ticket: populatedTicket,
+                callLog: {
+                    id: callLog._id,
+                    phoneNumber: callLog.phoneNumber,
+                    contactName: callLog.contactName,
+                    hasTicket: true
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error creating ticket from call log:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create ticket from call log',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// PUT /api/call-logs/:id/link-ticket - Link call log to existing ticket
+// ==========================================
+router.put('/:id/link-ticket', auth, [
+    param('id').isMongoId(),
+    body('ticketId').isMongoId().withMessage('Valid ticket ID is required')
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation errors',
+                errors: errors.array()
+            });
+        }
+        
+        const user = req.user;
+        const userScope = user.getAccessScope();
+        const { ticketId } = req.body;
+        
+        // Find call log with permission check
+        let callLogQuery = { _id: req.params.id, organizationId: user.organizationId };
+        
+        if (!userScope.canViewAll && !userScope.canViewTeam) {
+            callLogQuery.userId = user._id;
+        }
+        
+        const callLog = await CallLog.findOne(callLogQuery);
+        if (!callLog) {
+            return res.status(404).json({
+                success: false,
+                message: 'Call log not found or access denied'
+            });
+        }
+        
+        // Find ticket with permission check
+        let ticketQuery = { _id: ticketId, organizationId: user.organizationId };
+        
+        if (!userScope.canViewAll) {
+            if (userScope.canViewTeam) {
+                ticketQuery.$or = [
+                    { assignedTo: user._id },
+                    { createdBy: user._id },
+                    { teamId: { $in: userScope.teamIds } }
+                ];
+            } else {
+                ticketQuery.$or = [
+                    { assignedTo: user._id },
+                    { createdBy: user._id }
+                ];
+            }
+        }
+        
+        const ticket = await Ticket.findOne(ticketQuery);
+        if (!ticket) {
+            return res.status(404).json({
+                success: false,
+                message: 'Ticket not found or access denied'
+            });
+        }
+        
+        // Link call log to ticket
+        await callLog.linkToTicket(ticketId);
+        
+        // Add call log to ticket's call log IDs if not already present
+        if (!ticket.callLogIds.includes(callLog._id)) {
+            ticket.callLogIds.push(callLog._id);
+            await ticket.save();
+        }
+        
+        console.log(`✅ Linked call log ${callLog._id} to ticket ${ticket.ticketNumber}`);
+        
+        res.json({
+            success: true,
+            message: 'Call log linked to ticket successfully',
+            data: {
+                callLogId: callLog._id,
+                ticketId: ticket._id,
+                ticketNumber: ticket.ticketNumber
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error linking call log to ticket:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to link call log to ticket',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// DELETE /api/call-logs/:id/unlink-ticket - Unlink call log from ticket
+// ==========================================
+router.delete('/:id/unlink-ticket', auth, param('id').isMongoId(), async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid call log ID',
+                errors: errors.array()
+            });
+        }
+        
+        const user = req.user;
+        const userScope = user.getAccessScope();
+        
+        // Find call log with permission check
+        let query = { _id: req.params.id, organizationId: user.organizationId };
+        
+        if (!userScope.canViewAll && !userScope.canViewTeam) {
+            query.userId = user._id;
+        }
+        
+        const callLog = await CallLog.findOne(query);
+        if (!callLog) {
+            return res.status(404).json({
+                success: false,
+                message: 'Call log not found or access denied'
+            });
+        }
+        
+        if (!callLog.hasTicket) {
+            return res.status(400).json({
+                success: false,
+                message: 'Call log is not linked to any ticket'
+            });
+        }
+        
+        const ticketId = callLog.ticketId;
+        
+        // Unlink call log from ticket
+        await callLog.unlinkFromTicket();
+        
+        // Remove call log from ticket's call log IDs
+        if (ticketId) {
+            await Ticket.findByIdAndUpdate(ticketId, {
+                $pull: { callLogIds: callLog._id }
+            });
+        }
+        
+        console.log(`✅ Unlinked call log ${callLog._id} from ticket ${ticketId}`);
+        
+        res.json({
+            success: true,
+            message: 'Call log unlinked from ticket successfully',
+            data: {
+                callLogId: callLog._id,
+                previousTicketId: ticketId
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error unlinking call log from ticket:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to unlink call log from ticket',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// GET /api/call-logs/without-tickets - Get call logs without tickets
+// ==========================================
+router.get('/without-tickets', auth, async (req, res) => {
+    try {
+        const user = req.user;
+        const { page = 1, limit = 20, days = 30 } = req.query;
+        
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - parseInt(days));
+        
+        const dateRange = { start: startDate, end: new Date() };
+        
+        // Get calls without tickets using the model method
+        const callLogs = await CallLog.findCallsWithoutTickets(user.organizationId, dateRange);
+        
+        // Apply user permission filtering if needed
+        const userScope = user.getAccessScope();
+        let filteredCallLogs = callLogs;
+        
+        if (!userScope.canViewAll) {
+            if (userScope.canViewTeam) {
+                filteredCallLogs = callLogs.filter(call => 
+                    call.userId.toString() === user._id.toString() ||
+                    userScope.teamIds.includes(call.teamId?.toString())
+                );
+            } else {
+                filteredCallLogs = callLogs.filter(call => 
+                    call.userId.toString() === user._id.toString()
+                );
+            }
+        }
+        
+        // Pagination
+        const skip = (page - 1) * limit;
+        const paginatedCallLogs = filteredCallLogs.slice(skip, skip + parseInt(limit));
+        
+        res.json({
+            success: true,
+            data: {
+                callLogs: paginatedCallLogs,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total: filteredCallLogs.length,
+                    pages: Math.ceil(filteredCallLogs.length / limit)
+                },
+                summary: {
+                    totalCallsWithoutTickets: filteredCallLogs.length,
+                    dateRange: `${days} days`,
+                    scope: userScope.canViewAll ? 'organization' : 
+                           userScope.canViewTeam ? 'team' : 'personal'
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error fetching call logs without tickets:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch call logs without tickets',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// GET /api/call-logs/ticket-stats - Get ticket creation statistics
+// ==========================================
+router.get('/ticket-stats', auth, checkPermission('view_analytics'), async (req, res) => {
+    try {
+        const user = req.user;
+        const { days = 30 } = req.query;
+        
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - parseInt(days));
+        
+        const dateRange = { start: startDate, end: new Date() };
+        
+        // Get ticket creation stats
+        const stats = await CallLog.getTicketCreationStats(user.organizationId, dateRange);
+        
+        // Get additional breakdown
+        const breakdown = await CallLog.aggregate([
+            {
+                $match: {
+                    organizationId: user.organizationId,
+                    timestamp: { $gte: startDate, $lte: new Date() },
+                    isDeleted: false
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        callType: '$callType',
+                        hasTicket: '$hasTicket'
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $group: {
+                    _id: '$_id.callType',
+                    total: { $sum: '$count' },
+                    withTickets: {
+                        $sum: {
+                            $cond: [{ $eq: ['$_id.hasTicket', true] }, '$count', 0]
+                        }
+                    },
+                    withoutTickets: {
+                        $sum: {
+                            $cond: [{ $eq: ['$_id.hasTicket', false] }, '$count', 0]
+                        }
+                    }
+                }
+            }
+        ]);
+        
+        res.json({
+            success: true,
+            data: {
+                summary: stats[0] || {
+                    totalCalls: 0,
+                    callsWithTickets: 0,
+                    autoCreatedTickets: 0,
+                    ticketConversionRate: 0
+                },
+                breakdown,
+                period: `${days} days`,
+                generatedAt: new Date().toISOString()
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error fetching ticket statistics:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch ticket statistics',
+            error: error.message
+        });
+    }
+});
+
+console.log("✅ callLogs.js routes setup complete - All endpoints ready with ticket integration!");
 
 module.exports = router;

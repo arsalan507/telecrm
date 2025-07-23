@@ -210,6 +210,104 @@ const userSchema = new mongoose.Schema({
     default: 0
   },
   
+  // Ticket Performance Tracking
+  ticketStats: {
+    totalAssigned: {
+      type: Number,
+      default: 0
+    },
+    totalResolved: {
+      type: Number,
+      default: 0
+    },
+    totalClosed: {
+      type: Number,
+      default: 0
+    },
+    avgResolutionTime: {
+      type: Number, // in hours
+      default: 0
+    },
+    avgFirstResponseTime: {
+      type: Number, // in minutes
+      default: 0
+    },
+    currentActiveTickets: {
+      type: Number,
+      default: 0
+    },
+    overdueTickets: {
+      type: Number,
+      default: 0
+    },
+    customerSatisfactionRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5
+    },
+    totalCustomerSatisfactionResponses: {
+      type: Number,
+      default: 0
+    },
+    escalationsReceived: {
+      type: Number,
+      default: 0
+    },
+    escalationsInitiated: {
+      type: Number,
+      default: 0
+    },
+    lastStatUpdate: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  
+  // Performance Metrics
+  performanceMetrics: {
+    thisMonth: {
+      ticketsResolved: { type: Number, default: 0 },
+      avgResolutionTime: { type: Number, default: 0 },
+      customerSatisfaction: { type: Number, default: 0 },
+      responseTime: { type: Number, default: 0 }
+    },
+    lastMonth: {
+      ticketsResolved: { type: Number, default: 0 },
+      avgResolutionTime: { type: Number, default: 0 },
+      customerSatisfaction: { type: Number, default: 0 },
+      responseTime: { type: Number, default: 0 }
+    },
+    yearToDate: {
+      ticketsResolved: { type: Number, default: 0 },
+      avgResolutionTime: { type: Number, default: 0 },
+      customerSatisfaction: { type: Number, default: 0 },
+      responseTime: { type: Number, default: 0 }
+    }
+  },
+  
+  // Goals and Targets
+  performanceTargets: {
+    monthlyTicketTarget: {
+      type: Number,
+      default: 0
+    },
+    resolutionTimeTarget: {
+      type: Number, // in hours
+      default: 24
+    },
+    responseTimeTarget: {
+      type: Number, // in minutes
+      default: 60
+    },
+    customerSatisfactionTarget: {
+      type: Number,
+      default: 4.0,
+      min: 1,
+      max: 5
+    }
+  },
+  
   // Security
   emailVerificationToken: String,
   passwordResetToken: String,
@@ -504,6 +602,258 @@ userSchema.methods.getSafeProfile = function() {
   delete profile.passwordResetToken;
   delete profile.emailVerificationToken;
   return profile;
+};
+
+// Ticket Performance Methods
+userSchema.methods.updateTicketStats = async function(statType, value = 1) {
+  if (!this.ticketStats[statType] && this.ticketStats[statType] !== 0) {
+    throw new Error(`Invalid stat type: ${statType}`);
+  }
+  
+  this.ticketStats[statType] += value;
+  this.ticketStats.lastStatUpdate = Date.now();
+  
+  return this.save({ validateBeforeSave: false });
+};
+
+userSchema.methods.incrementTicketStat = async function(statType) {
+  return this.updateTicketStats(statType, 1);
+};
+
+userSchema.methods.decrementTicketStat = async function(statType) {
+  return this.updateTicketStats(statType, -1);
+};
+
+userSchema.methods.updateResolutionTime = async function(newTime) {
+  const currentAvg = this.ticketStats.avgResolutionTime;
+  const currentCount = this.ticketStats.totalResolved;
+  
+  // Calculate new average
+  this.ticketStats.avgResolutionTime = currentCount === 0 
+    ? newTime 
+    : ((currentAvg * currentCount) + newTime) / (currentCount + 1);
+    
+  return this.save({ validateBeforeSave: false });
+};
+
+userSchema.methods.updateFirstResponseTime = async function(newTime) {
+  const currentAvg = this.ticketStats.avgFirstResponseTime;
+  const currentAssigned = this.ticketStats.totalAssigned;
+  
+  // Calculate new average
+  this.ticketStats.avgFirstResponseTime = currentAssigned === 0 
+    ? newTime 
+    : ((currentAvg * currentAssigned) + newTime) / (currentAssigned + 1);
+    
+  return this.save({ validateBeforeSave: false });
+};
+
+userSchema.methods.updateCustomerSatisfaction = async function(rating) {
+  const currentRating = this.ticketStats.customerSatisfactionRating;
+  const currentResponses = this.ticketStats.totalCustomerSatisfactionResponses;
+  
+  // Calculate new average rating
+  this.ticketStats.customerSatisfactionRating = currentResponses === 0 
+    ? rating 
+    : ((currentRating * currentResponses) + rating) / (currentResponses + 1);
+    
+  this.ticketStats.totalCustomerSatisfactionResponses += 1;
+  
+  return this.save({ validateBeforeSave: false });
+};
+
+userSchema.methods.refreshTicketStats = async function() {
+  const Ticket = mongoose.model('Ticket');
+  
+  try {
+    // Get comprehensive ticket statistics
+    const stats = await Ticket.aggregate([
+      {
+        $match: {
+          $or: [
+            { assignedTo: this._id },
+            { createdBy: this._id }
+          ],
+          organizationId: this.organizationId
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalAssigned: {
+            $sum: { $cond: [{ $eq: ['$assignedTo', this._id] }, 1, 0] }
+          },
+          totalResolved: {
+            $sum: { 
+              $cond: [
+                { 
+                  $and: [
+                    { $eq: ['$assignedTo', this._id] },
+                    { $eq: ['$status', 'resolved'] }
+                  ]
+                }, 
+                1, 
+                0
+              ] 
+            }
+          },
+          totalClosed: {
+            $sum: { 
+              $cond: [
+                { 
+                  $and: [
+                    { $eq: ['$assignedTo', this._id] },
+                    { $eq: ['$status', 'closed'] }
+                  ]
+                }, 
+                1, 
+                0
+              ] 
+            }
+          },
+          currentActive: {
+            $sum: { 
+              $cond: [
+                { 
+                  $and: [
+                    { $eq: ['$assignedTo', this._id] },
+                    { $in: ['$status', ['open', 'in_progress', 'pending_customer']] }
+                  ]
+                }, 
+                1, 
+                0
+              ] 
+            }
+          },
+          overdue: {
+            $sum: { 
+              $cond: [
+                { 
+                  $and: [
+                    { $eq: ['$assignedTo', this._id] },
+                    { $lt: ['$dueDate', new Date()] },
+                    { $nin: ['$status', ['resolved', 'closed']] }
+                  ]
+                }, 
+                1, 
+                0
+              ] 
+            }
+          },
+          avgResolutionTime: {
+            $avg: {
+              $cond: [
+                { 
+                  $and: [
+                    { $eq: ['$assignedTo', this._id] },
+                    { $ne: ['$actualResolutionTime', null] }
+                  ]
+                },
+                '$actualResolutionTime',
+                null
+              ]
+            }
+          },
+          avgCustomerSatisfaction: {
+            $avg: {
+              $cond: [
+                { 
+                  $and: [
+                    { $eq: ['$assignedTo', this._id] },
+                    { $ne: ['$customerSatisfaction.rating', null] }
+                  ]
+                },
+                '$customerSatisfaction.rating',
+                null
+              ]
+            }
+          },
+          satisfactionResponses: {
+            $sum: {
+              $cond: [
+                { 
+                  $and: [
+                    { $eq: ['$assignedTo', this._id] },
+                    { $ne: ['$customerSatisfaction.rating', null] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+    
+    if (stats.length > 0) {
+      const stat = stats[0];
+      
+      this.ticketStats = {
+        totalAssigned: stat.totalAssigned || 0,
+        totalResolved: stat.totalResolved || 0,
+        totalClosed: stat.totalClosed || 0,
+        avgResolutionTime: stat.avgResolutionTime || 0,
+        avgFirstResponseTime: this.ticketStats.avgFirstResponseTime, // Keep existing
+        currentActiveTickets: stat.currentActive || 0,
+        overdueTickets: stat.overdue || 0,
+        customerSatisfactionRating: stat.avgCustomerSatisfaction || 0,
+        totalCustomerSatisfactionResponses: stat.satisfactionResponses || 0,
+        escalationsReceived: this.ticketStats.escalationsReceived, // Keep existing
+        escalationsInitiated: this.ticketStats.escalationsInitiated, // Keep existing
+        lastStatUpdate: Date.now()
+      };
+    }
+    
+    return this.save({ validateBeforeSave: false });
+  } catch (error) {
+    console.error('Error refreshing ticket stats:', error);
+    throw error;
+  }
+};
+
+userSchema.methods.getPerformanceScore = function() {
+  const stats = this.ticketStats;
+  const targets = this.performanceTargets;
+  
+  let score = 0;
+  let factors = 0;
+  
+  // Resolution time performance (30%)
+  if (stats.avgResolutionTime > 0 && targets.resolutionTimeTarget > 0) {
+    const resolutionScore = Math.min(targets.resolutionTimeTarget / stats.avgResolutionTime, 1);
+    score += resolutionScore * 0.3;
+    factors += 0.3;
+  }
+  
+  // Customer satisfaction performance (25%)
+  if (stats.customerSatisfactionRating > 0 && targets.customerSatisfactionTarget > 0) {
+    const satisfactionScore = stats.customerSatisfactionRating / targets.customerSatisfactionTarget;
+    score += Math.min(satisfactionScore, 1) * 0.25;
+    factors += 0.25;
+  }
+  
+  // Ticket completion rate (25%)
+  if (stats.totalAssigned > 0) {
+    const completionRate = (stats.totalResolved + stats.totalClosed) / stats.totalAssigned;
+    score += completionRate * 0.25;
+    factors += 0.25;
+  }
+  
+  // Overdue penalty (20%)
+  if (stats.currentActiveTickets > 0) {
+    const overdueRate = stats.overdueTickets / stats.currentActiveTickets;
+    const overdueScore = Math.max(1 - overdueRate, 0);
+    score += overdueScore * 0.2;
+    factors += 0.2;
+  }
+  
+  return factors > 0 ? Math.round((score / factors) * 100) : 0;
+};
+
+userSchema.methods.isPerformingWell = function() {
+  const score = this.getPerformanceScore();
+  return score >= 70; // 70% or above is considered good performance
 };
 
 module.exports = mongoose.model('User', userSchema);
