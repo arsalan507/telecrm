@@ -10,10 +10,14 @@ const User = require('../models/User');
  */
 const auth = async (req, res, next) => {
   try {
+    console.log('🔍 Auth middleware - Starting authentication');
+    
     // Get token from Authorization header
     const authHeader = req.header('Authorization');
+    console.log('🔍 Auth middleware - Header exists:', !!authHeader);
     
     if (!authHeader) {
+      console.log('❌ Auth middleware - No authorization header');
       return res.status(401).json({
         success: false,
         message: 'Access denied. No token provided.'
@@ -26,21 +30,42 @@ const auth = async (req, res, next) => {
       : authHeader;
 
     if (!token) {
+      console.log('❌ Auth middleware - No token after extraction');
       return res.status(401).json({
         success: false,
         message: 'Access denied. Invalid token format.'
       });
     }
 
+    console.log('🔍 Auth middleware - Token extracted successfully');
+    console.log('🔍 Auth middleware - JWT_SECRET exists:', !!process.env.JWT_SECRET);
+
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('🔍 Auth middleware - Token decoded:', decoded);
+    
+    // Handle both possible ID field names (userId or id)
+    const userId = decoded.userId || decoded.id;
+    console.log('🔍 Auth middleware - User ID for lookup:', userId);
+    
+    if (!userId) {
+      console.log('❌ Auth middleware - No user ID in token');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token. No user ID found.'
+      });
+    }
     
     // Get user from database (without password)
-    const user = await User.findById(decoded.userId)
+    const user = await User.findById(userId)
       .populate('organizationId', 'name subscriptionPlan subscriptionStatus userLimit callLimit')
       .select('-password -emailVerificationToken -passwordResetToken');
     
+    console.log('🔍 Auth middleware - User found:', !!user);
+    console.log('🔍 Auth middleware - User role:', user?.role);
+    
     if (!user) {
+      console.log('❌ Auth middleware - User not found in database');
       return res.status(401).json({
         success: false,
         message: 'Invalid token. User not found.'
@@ -80,9 +105,12 @@ const auth = async (req, res, next) => {
     
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    console.error('❌ Auth middleware error:', error);
+    console.error('❌ Auth middleware error name:', error.name);
+    console.error('❌ Auth middleware error message:', error.message);
     
     if (error.name === 'JsonWebTokenError') {
+      console.log('❌ Auth middleware - Invalid JWT token');
       return res.status(401).json({
         success: false,
         message: 'Invalid token.'
@@ -90,15 +118,18 @@ const auth = async (req, res, next) => {
     }
     
     if (error.name === 'TokenExpiredError') {
+      console.log('❌ Auth middleware - Token expired');
       return res.status(401).json({
         success: false,
         message: 'Token expired. Please login again.'
       });
     }
     
+    console.log('❌ Auth middleware - Unexpected server error');
     res.status(500).json({
       success: false,
-      message: 'Server error in authentication.'
+      message: 'Server error in authentication.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

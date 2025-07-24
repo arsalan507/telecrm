@@ -8,7 +8,12 @@ const { auth } = require('./auth');
  * @param {Function} next - Express next function
  */
 const requireSuperAdmin = (req, res, next) => {
+  console.log('🔍 Super admin middleware - Checking permissions');
+  console.log('🔍 Super admin middleware - User exists:', !!req.user);
+  console.log('🔍 Super admin middleware - User role:', req.user?.role);
+  
   if (!req.user) {
+    console.log('❌ Super admin middleware - No user in request');
     return res.status(401).json({
       success: false,
       message: 'Authentication required.'
@@ -16,12 +21,14 @@ const requireSuperAdmin = (req, res, next) => {
   }
 
   if (req.user.role !== 'super_admin') {
+    console.log('❌ Super admin middleware - Insufficient permissions:', req.user.role);
     return res.status(403).json({
       success: false,
       message: 'Access denied. Super admin privileges required.'
     });
   }
 
+  console.log('✅ Super admin middleware - Access granted');
   next();
 };
 
