@@ -22,6 +22,7 @@ const authRoute = require('./routes/auth');
 const contactsRoute = require('./routes/contacts');
 const organizationsRoute = require('./routes/organizations');
 const invitationsRoute = require('./routes/invitations');
+const superAdminRoute = require('./routes/superAdmin');
 
 // Mount routes
 app.use('/api/call-logs', callLogsRoute);
@@ -29,6 +30,7 @@ app.use('/api/auth', authRoute);
 app.use('/api/contacts', contactsRoute);
 app.use('/api/organizations', organizationsRoute);
 app.use('/api/invitations', invitationsRoute);
+app.use('/api/super-admin', superAdminRoute);
 
 // Root route
 app.get('/', (req, res) => {
@@ -83,6 +85,12 @@ app.get('/', (req, res) => {
                 'GET /api/call-logs/:id',
                 'PUT /api/call-logs/:id',
                 'DELETE /api/call-logs/:id'
+            ],
+            superAdmin: [
+                'GET /api/super-admin/organizations',
+                'POST /api/super-admin/organizations',
+                'DELETE /api/super-admin/organizations/:orgId',
+                'GET /api/super-admin/stats'
             ]
         },
         documentation: {
