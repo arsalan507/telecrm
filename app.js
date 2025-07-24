@@ -6,9 +6,62 @@ const cors = require('cors');
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Enhanced CORS Configuration
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'https://super-admin-dashboard-telecrm.netlify.app',
+    'https://telecrm-super-admin.netlify.app',
+    /\.netlify\.app$/,
+    /\.vercel\.app$/
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Cache-Control',
+    'X-File-Name'
+  ],
+  exposedHeaders: ['Authorization'],
+  maxAge: 86400 // 24 hours
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// Additional CORS headers for manual handling
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (corsOptions.origin.some(allowed => {
+    if (typeof allowed === 'string') return allowed === origin;
+    if (allowed instanceof RegExp) return allowed.test(origin);
+    return false;
+  })) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
+  res.header('Access-Control-Expose-Headers', 'Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging
 app.use((req, res, next) => {
@@ -31,6 +84,28 @@ app.use('/api/contacts', contactsRoute);
 app.use('/api/organizations', organizationsRoute);
 app.use('/api/invitations', invitationsRoute);
 app.use('/api/super-admin', superAdminRoute);
+
+// Health check endpoint for debugging
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        cors: 'enabled',
+        origin: req.headers.origin || 'not-provided',
+        userAgent: req.headers['user-agent'] || 'not-provided'
+    });
+});
+
+// API test endpoint for debugging
+app.get('/api/test', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Backend API is working',
+        cors: 'configured',
+        timestamp: new Date().toISOString(),
+        origin: req.headers.origin || 'not-provided'
+    });
+});
 
 // Root route
 app.get('/', (req, res) => {
