@@ -89,7 +89,9 @@ app.get('/', (req, res) => {
             superAdmin: [
                 'GET /api/super-admin/organizations',
                 'POST /api/super-admin/organizations',
-                'DELETE /api/super-admin/organizations/:orgId',
+                'PUT /api/super-admin/organizations/:id',
+                'DELETE /api/super-admin/organizations/:id',
+                'GET /api/super-admin/organizations/:id/users',
                 'GET /api/super-admin/stats'
             ]
         },

@@ -8,6 +8,30 @@ const organizationSchema = new mongoose.Schema({
     trim: true,
     maxLength: 100
   },
+  domain: {
+    type: String,
+    required: [true, 'Domain is required'],
+    unique: true,
+    lowercase: true,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.?[a-zA-Z]{2,}$/.test(v);
+      },
+      message: 'Please enter a valid domain'
+    }
+  },
+  description: {
+    type: String,
+    trim: true,
+    maxLength: 500
+  },
+  plan: {
+    type: String,
+    enum: ['basic', 'professional', 'enterprise'],
+    default: 'basic',
+    index: true
+  },
   slug: {
     type: String,
     unique: true,
@@ -224,6 +248,8 @@ const organizationSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
+organizationSchema.index({ domain: 1 });
+organizationSchema.index({ plan: 1 });
 organizationSchema.index({ slug: 1 });
 organizationSchema.index({ ownerId: 1 });
 organizationSchema.index({ subscriptionStatus: 1 });

@@ -163,6 +163,7 @@ router.get('/organizations', superAdminAuth, async (req, res) => {
     const totalPages = Math.ceil(totalCount / limit);
 
     res.json({
+      success: true,
       data: organizations,
       pagination: {
         page,
@@ -171,7 +172,8 @@ router.get('/organizations', superAdminAuth, async (req, res) => {
         totalPages,
         hasNext: page < totalPages,
         hasPrev: page > 1
-      }
+      },
+      message: `Found ${organizations.length} organizations`
     });
 
   } catch (error) {
@@ -271,6 +273,7 @@ router.post('/organizations', superAdminAuth, async (req, res) => {
       name: name.trim(),
       domain: domain.toLowerCase(),
       description: description || `${name.trim()} organization`,
+      plan: plan,
       subscriptionPlan: limits.subscriptionPlan,
       subscriptionStatus: 'active',
       isActive: true,
@@ -328,34 +331,38 @@ router.post('/organizations', superAdminAuth, async (req, res) => {
 
     // Return success response
     res.status(201).json({
-      organization: {
-        _id: organization._id,
-        name: organization.name,
-        domain: organization.domain,
-        description: organization.description,
-        plan: plan, // Return original plan name for frontend
-        subscriptionPlan: organization.subscriptionPlan,
-        subscriptionStatus: organization.subscriptionStatus,
-        isActive: organization.isActive,
-        userLimit: organization.userLimit,
-        callLimit: organization.callLimit,
-        createdAt: organization.createdAt,
-        owner: {
+      success: true,
+      data: {
+        organization: {
+          _id: organization._id,
+          name: organization.name,
+          domain: organization.domain,
+          description: organization.description,
+          plan: plan, // Return original plan name for frontend
+          subscriptionPlan: organization.subscriptionPlan,
+          subscriptionStatus: organization.subscriptionStatus,
+          isActive: organization.isActive,
+          userLimit: organization.userLimit,
+          callLimit: organization.callLimit,
+          createdAt: organization.createdAt,
+          owner: {
+            _id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email
+          }
+        },
+        adminUser: {
           _id: user._id,
           firstName: user.firstName,
           lastName: user.lastName,
-          email: user.email
+          email: user.email,
+          role: user.role,
+          organizationId: user.organizationId,
+          createdAt: user.createdAt
         }
       },
-      adminUser: {
-        _id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-        organizationId: user.organizationId,
-        createdAt: user.createdAt
-      }
+      message: `Organization "${organization.name}" created successfully with admin user`
     });
 
   } catch (error) {
@@ -456,14 +463,14 @@ router.delete('/organizations/:orgId', superAdminAuth, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Organization and all associated data deleted successfully',
-      deletedData: {
+      data: {
         organization: organization.name,
         users: userCount,
         callLogs: callLogCount,
         contacts: contactCount,
         tickets: ticketCount
-      }
+      },
+      message: 'Organization and all associated data deleted successfully'
     });
 
   } catch (error) {
@@ -512,12 +519,16 @@ router.get('/stats', superAdminAuth, async (req, res) => {
     }, {});
 
     res.json({
-      totalOrganizations,
-      totalUsers,
-      totalCallLogs,
-      totalContacts,
-      activeOrganizations,
-      organizationsByPlan: planStats
+      success: true,
+      data: {
+        totalOrganizations,
+        totalUsers,
+        totalCallLogs,
+        totalContacts,
+        activeOrganizations,
+        organizationsByPlan: planStats
+      },
+      message: 'Platform statistics retrieved successfully'
     });
 
   } catch (error) {
@@ -525,6 +536,213 @@ router.get('/stats', superAdminAuth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch platform statistics',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
+ * @route   PUT /api/super-admin/organizations/:id
+ * @desc    Update organization details
+ * @access  Super Admin Only
+ */
+router.put('/organizations/:id', superAdminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, domain, description, plan, isActive, settings } = req.body;
+
+    // Find organization
+    const organization = await Organization.findById(id);
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization not found'
+      });
+    }
+
+    // Validate domain uniqueness if being updated
+    if (domain && domain.toLowerCase() !== organization.domain) {
+      const existingOrgByDomain = await Organization.findOne({ 
+        domain: domain.toLowerCase(),
+        _id: { $ne: id }
+      });
+      
+      if (existingOrgByDomain) {
+        return res.status(409).json({
+          success: false,
+          message: 'Organization with this domain already exists'
+        });
+      }
+    }
+
+    // Validate name uniqueness if being updated
+    if (name && name.trim() !== organization.name) {
+      const existingOrgByName = await Organization.findOne({ 
+        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+        _id: { $ne: id }
+      });
+      
+      if (existingOrgByName) {
+        return res.status(409).json({
+          success: false,
+          message: 'Organization with this name already exists'
+        });
+      }
+    }
+
+    // Update organization fields
+    const updateData = {};
+    if (name) updateData.name = name.trim();
+    if (domain) updateData.domain = domain.toLowerCase();
+    if (description !== undefined) updateData.description = description;
+    if (plan && ['basic', 'professional', 'enterprise'].includes(plan)) {
+      updateData.plan = plan;
+      // Map to existing subscription plan
+      const planMapping = {
+        basic: 'pro',
+        professional: 'business',
+        enterprise: 'enterprise'
+      };
+      updateData.subscriptionPlan = planMapping[plan];
+    }
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (settings) updateData.settings = { ...organization.settings, ...settings };
+
+    // Update the organization
+    const updatedOrganization = await Organization.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('ownerId', 'firstName lastName email');
+
+    res.json({
+      success: true,
+      data: {
+        _id: updatedOrganization._id,
+        name: updatedOrganization.name,
+        domain: updatedOrganization.domain,
+        description: updatedOrganization.description,
+        plan: updatedOrganization.plan,
+        isActive: updatedOrganization.isActive,
+        settings: updatedOrganization.settings,
+        createdAt: updatedOrganization.createdAt,
+        updatedAt: updatedOrganization.updatedAt,
+        owner: updatedOrganization.ownerId
+      },
+      message: 'Organization updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error updating organization:', error);
+
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(409).json({
+        success: false,
+        message: `${field} already exists`
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update organization',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
+ * @route   GET /api/super-admin/organizations/:id/users
+ * @desc    Get all users in a specific organization
+ * @access  Super Admin Only
+ */
+router.get('/organizations/:id/users', superAdminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+    const role = req.query.role;
+    const status = req.query.status;
+
+    // Check if organization exists
+    const organization = await Organization.findById(id);
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization not found'
+      });
+    }
+
+    // Build filter query
+    const filter = { organizationId: id };
+    
+    if (search) {
+      filter.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (role) {
+      filter.role = role;
+    }
+    
+    if (status === 'active') {
+      filter.isActive = true;
+    } else if (status === 'inactive') {
+      filter.isActive = false;
+    }
+
+    // Get users with pagination
+    const users = await User.find(filter)
+      .select('-password -emailVerificationToken -passwordResetToken')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Get total count for pagination
+    const totalCount = await User.countDocuments(filter);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    res.json({
+      success: true,
+      data: users,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      organization: {
+        _id: organization._id,
+        name: organization.name,
+        domain: organization.domain
+      },
+      message: `Found ${users.length} users in ${organization.name}`
+    });
+
+  } catch (error) {
+    console.error('Error fetching organization users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch organization users',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
