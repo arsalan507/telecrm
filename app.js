@@ -6,16 +6,21 @@ const mongoose = require('mongoose');
 
 const app = express();
 
-// Connect to MongoDB
+// Connect to MongoDB with better error handling
 const connectDB = async () => {
   try {
     console.log('🔌 Attempting to connect to MongoDB...');
     console.log('🔌 MONGODB_URI exists:', !!process.env.MONGODB_URI);
+    console.log('🔌 MONGODB_URI preview:', process.env.MONGODB_URI?.substring(0, 50) + '...');
     
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+    });
     console.log('✅ MongoDB connected successfully');
   } catch (error) {
     console.error('❌ MongoDB connection failed:', error.message);
+    console.error('❌ MongoDB error details:', error);
   }
 };
 
@@ -58,7 +63,22 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    cors: 'enabled'
+    cors: 'enabled',
+    database: {
+      connected: mongoose.connection.readyState === 1,
+      state: mongoose.connection.readyState,
+      states: {
+        0: 'disconnected',
+        1: 'connected', 
+        2: 'connecting',
+        3: 'disconnecting'
+      }
+    },
+    environment: {
+      mongodbUriSet: !!process.env.MONGODB_URI,
+      jwtSecretSet: !!process.env.JWT_SECRET,
+      nodeEnv: process.env.NODE_ENV
+    }
   });
 });
 
