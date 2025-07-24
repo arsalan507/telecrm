@@ -6,62 +6,46 @@ const cors = require('cors');
 
 const app = express();
 
-// Enhanced CORS Configuration
-const corsOptions = {
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:8080',
-    'https://super-admin-dashboard-telecrm.netlify.app',
-    'https://telecrm-super-admin.netlify.app',
-    /\.netlify\.app$/,
-    /\.vercel\.app$/
-  ],
+// Simplified CORS Configuration for reliability
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:8080',
+      'https://super-admin-dashboard-telecrm.netlify.app',
+      'https://telecrm-super-admin.netlify.app'
+    ];
+    
+    // Check if origin is allowed or matches netlify/vercel pattern
+    if (allowedOrigins.includes(origin) || 
+        origin.endsWith('.netlify.app') || 
+        origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    return callback(null, false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'Accept',
-    'Origin',
-    'Cache-Control',
-    'X-File-Name'
-  ],
-  exposedHeaders: ['Authorization'],
-  maxAge: 86400 // 24 hours
-};
-
-app.use(cors(corsOptions));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200
+}));
 
 // Handle preflight requests
-app.options('*', cors(corsOptions));
-
-// Additional CORS headers for manual handling
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (corsOptions.origin.some(allowed => {
-    if (typeof allowed === 'string') return allowed === origin;
-    if (allowed instanceof RegExp) return allowed.test(origin);
-    return false;
-  })) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  
-  res.header('Access-Control-Allow-Credentials', 'true');
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
-  res.header('Access-Control-Expose-Headers', 'Authorization');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  next();
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
 });
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Request logging
 app.use((req, res, next) => {
