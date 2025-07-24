@@ -1,0 +1,168 @@
+// Load environment variables FIRST
+require('dotenv').config();
+
+const express = require('express');
+const cors = require('cors');
+
+const app = express();
+
+// Simplified CORS Configuration for reliability
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:8080',
+      'https://super-admin-dashboard-telecrm.netlify.app',
+      'https://telecrm-super-admin.netlify.app'
+    ];
+    
+    // Check if origin is allowed or matches netlify/vercel pattern
+    if (allowedOrigins.includes(origin) || 
+        origin.endsWith('.netlify.app') || 
+        origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200
+}));
+
+// Handle preflight requests
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Request logging
+app.use((req, res, next) => {
+    console.log(`🌐 ${req.method} ${req.url} - ${new Date().toLocaleTimeString()}`);
+    next();
+});
+
+// Temporarily remove all routes to test basic app startup
+// const authRoute = require('./routes/auth');
+// const superAdminRoute = require('./routes/superAdmin');
+
+// Mount essential routes only for deployment test
+// app.use('/api/auth', authRoute);
+// app.use('/api/super-admin', superAdminRoute);
+
+// Additional routes (temporarily commented for deployment test)
+// const callLogsRoute = require('./routes/callLogs');
+// const contactsRoute = require('./routes/contacts');
+// const organizationsRoute = require('./routes/organizations');
+// const invitationsRoute = require('./routes/invitations');
+// app.use('/api/call-logs', callLogsRoute);
+// app.use('/api/contacts', contactsRoute);
+// app.use('/api/organizations', organizationsRoute);
+// app.use('/api/invitations', invitationsRoute);
+
+// Health check endpoint for debugging (temporarily disabled)
+// app.get('/health', (req, res) => {
+//     res.json({
+//         status: 'healthy',
+//         timestamp: new Date().toISOString(),
+//         cors: 'enabled',
+//         origin: req.headers.origin || 'not-provided',
+//         userAgent: req.headers['user-agent'] || 'not-provided'
+//     });
+// });
+
+// API test endpoint for debugging (temporarily disabled)
+// app.get('/api/test', (req, res) => {
+//     res.json({
+//         success: true,
+//         message: 'Backend API is working',
+//         cors: 'configured',
+//         timestamp: new Date().toISOString(),
+//         origin: req.headers.origin || 'not-provided'
+//     });
+// });
+
+// Root route
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'CallTracker Pro - Multi-Tenant SaaS CRM API',
+        version: '2.0.0',
+        architecture: 'Multi-Tenant SaaS',
+        database: process.env.MONGODB_URI ? 'MongoDB Atlas Connected' : 'Database Not Configured',
+        features: [
+            'Organization Management',
+            'Team Hierarchies', 
+            'Role-Based Access Control',
+            'Invitation System',
+            'Contact & Lead Management',
+            'Call Logging & Analytics',
+            'Subscription Management'
+        ],
+        endpoints: {
+            authentication: [
+                'POST /api/auth/register',
+                'POST /api/auth/login',
+                'GET /api/auth/debug'
+            ],
+            organizations: [
+                'GET /api/organizations/:orgId',
+                'PUT /api/organizations/:orgId',
+                'GET /api/organizations/:orgId/users',
+                'GET /api/organizations/:orgId/teams',
+                'POST /api/organizations/:orgId/teams',
+                'GET /api/organizations/:orgId/analytics',
+                'GET /api/organizations/:orgId/subscription'
+            ],
+            invitations: [
+                'POST /api/organizations/:orgId/invitations',
+                'GET /api/organizations/:orgId/invitations',
+                'POST /api/invitations/:token/accept',
+                'GET /api/invitations/:token',
+                'POST /api/invitations/:token/decline'
+            ],
+            contacts: [
+                'GET /api/contacts',
+                'POST /api/contacts',
+                'GET /api/contacts/:id',
+                'PUT /api/contacts/:id',
+                'DELETE /api/contacts/:id',
+                'POST /api/contacts/:id/notes',
+                'POST /api/contacts/:id/interactions'
+            ],
+            callLogs: [
+                'GET /api/call-logs',
+                'POST /api/call-logs',
+                'GET /api/call-logs/:id',
+                'PUT /api/call-logs/:id',
+                'DELETE /api/call-logs/:id'
+            ],
+            superAdmin: [
+                'GET /api/super-admin/organizations',
+                'POST /api/super-admin/organizations',
+                'PUT /api/super-admin/organizations/:id',
+                'DELETE /api/super-admin/organizations/:id',
+                'GET /api/super-admin/organizations/:id/users',
+                'GET /api/super-admin/stats'
+            ]
+        },
+        documentation: {
+            roles: ['super_admin', 'org_admin', 'manager', 'agent', 'viewer'],
+            permissions: 'Role-based with granular permissions',
+            dataIsolation: 'Complete organization-level isolation',
+            subscriptionPlans: ['free', 'pro', 'business', 'enterprise']
+        }
+    });
+});
+
+module.exports = app;
