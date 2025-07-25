@@ -198,6 +198,94 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// TEMPORARY: Super Admin Password Reset Endpoint
+// Remove this after resetting your password!
+app.post('/api/reset-super-admin', async (req, res) => {
+  try {
+    const { email, newPassword, confirmPassword } = req.body;
+    
+    console.log('🔐 Super admin password reset requested for:', email);
+    
+    // Basic validation
+    if (!email || !newPassword || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, newPassword, and confirmPassword are required'
+      });
+    }
+    
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match'
+      });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+    
+    // Only allow reset for the known super admin email
+    if (email !== 'adminpro@ctp.com') {
+      return res.status(403).json({
+        success: false,
+        message: 'Password reset only allowed for super admin email'
+      });
+    }
+    
+    const User = require('./models/User');
+    const bcrypt = require('bcryptjs');
+    
+    // Find the super admin user
+    const user = await User.findOne({ email: email.toLowerCase() });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Super admin user not found'
+      });
+    }
+    
+    if (user.role !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'User is not a super admin'
+      });
+    }
+    
+    // Hash the new password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    
+    // Update the password
+    user.password = hashedPassword;
+    await user.save();
+    
+    console.log('✅ Super admin password updated successfully');
+    
+    res.json({
+      success: true,
+      message: 'Super admin password reset successfully',
+      data: {
+        email: user.email,
+        role: user.role,
+        updatedAt: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error resetting super admin password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset password',
+      error: error.message
+    });
+  }
+});
+
 // Debug endpoint for authentication issues
 app.get('/api/debug/token', async (req, res) => {
   try {
@@ -287,6 +375,12 @@ app.get('/api/debug/token', async (req, res) => {
       dbConnected: require('mongoose').connection.readyState === 1
     });
   }
+});
+
+// TEMPORARY: Serve password reset form
+app.get('/reset-password', (req, res) => {
+  const path = require('path');
+  res.sendFile(path.join(__dirname, 'reset-password.html'));
 });
 
 module.exports = app;
