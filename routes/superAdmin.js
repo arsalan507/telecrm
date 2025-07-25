@@ -313,14 +313,14 @@ router.post('/organizations', superAdminAuth, async (req, res) => {
       lastName: adminUser.lastName.trim(),
       email: adminUser.email.toLowerCase(),
       password: adminUser.password, // Will be hashed by pre-save hook
-      phone: adminUser.phone || '',
+      phone: adminUser.phone || '1234567890', // Default phone if not provided
       organizationName: name.trim(), // Temporary - will be updated
       role: 'org_admin',
       isActive: true,
       subscriptionPlan: limits.subscriptionPlan,
       callLimit: limits.callLimit,
       callsUsed: 0,
-      signupSource: 'super_admin'
+      signupSource: 'api' // Use valid enum value instead of 'super_admin'
     });
 
     await tempUser.save();
