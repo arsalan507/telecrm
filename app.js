@@ -102,6 +102,10 @@ app.get('/', (req, res) => {
         'PUT /api/super-admin/organizations/:id',
         'DELETE /api/super-admin/organizations/:id',
         'GET /api/super-admin/organizations/:id/users',
+        'GET /api/super-admin/users',
+        'POST /api/super-admin/users',
+        'PUT /api/super-admin/users/:userId',
+        'DELETE /api/super-admin/users/:userId',
         'GET /api/super-admin/stats',
         'POST /api/super-admin/debug-auth'
       ],

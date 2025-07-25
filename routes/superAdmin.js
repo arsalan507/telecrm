@@ -790,4 +790,340 @@ router.get('/organizations/:id/users', superAdminAuth, async (req, res) => {
   }
 });
 
+/**
+ * @route   GET /api/super-admin/users
+ * @desc    Get all users across all organizations with pagination and filtering
+ * @access  Super Admin Only
+ */
+router.get('/users', superAdminAuth, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+    const role = req.query.role || '';
+    const organizationId = req.query.organizationId || '';
+
+    // Build filter object
+    const filter = {};
+    
+    if (search) {
+      filter.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (role && role !== 'all') {
+      filter.role = role;
+    }
+    
+    if (organizationId && organizationId !== 'all') {
+      filter.organizationId = organizationId;
+    }
+
+    // Get users with organization details
+    const users = await User.find(filter)
+      .populate('organizationId', 'name domain subscriptionPlan')
+      .select('-password -emailVerificationToken -passwordResetToken')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Get total count for pagination
+    const totalCount = await User.countDocuments(filter);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Format response data
+    const formattedUsers = users.map(user => ({
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId?._id,
+      organizationName: user.organizationId?.name || 'No Organization',
+      phone: user.phone,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      lastLoginAt: user.lastLoginAt,
+      subscriptionPlan: user.organizationId?.subscriptionPlan
+    }));
+
+    res.json({
+      success: true,
+      data: formattedUsers,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      },
+      message: `Found ${formattedUsers.length} users`
+    });
+
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
+ * @route   POST /api/super-admin/users
+ * @desc    Create a new user in a specific organization
+ * @access  Super Admin Only
+ */
+router.post('/users', superAdminAuth, async (req, res) => {
+  try {
+    const { firstName, lastName, email, role, organizationId, phone, password } = req.body;
+
+    // Validate required fields
+    const errors = [];
+    if (!firstName || firstName.trim().length < 2) {
+      errors.push('First name must be at least 2 characters');
+    }
+    if (!lastName || lastName.trim().length < 2) {
+      errors.push('Last name must be at least 2 characters');
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.push('Valid email is required');
+    }
+    if (!role || !['super_admin', 'org_admin', 'manager', 'agent', 'viewer'].includes(role)) {
+      errors.push('Valid role is required (super_admin, org_admin, manager, agent, viewer)');
+    }
+    if (!organizationId) {
+      errors.push('Organization ID is required');
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors
+      });
+    }
+
+    // Check if email already exists
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
+    }
+
+    // Verify organization exists
+    const organization = await Organization.findById(organizationId);
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization not found'
+      });
+    }
+
+    // Generate temporary password if not provided
+    const tempPassword = password || `Temp${Math.random().toString(36).slice(-8)}!`;
+
+    // Create user
+    const user = new User({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.toLowerCase(),
+      password: tempPassword, // Will be hashed by pre-save hook
+      role: role,
+      organizationId: organizationId,
+      organizationName: organization.name,
+      phone: phone || '1234567890',
+      isActive: true,
+      subscriptionPlan: organization.subscriptionPlan,
+      callLimit: organization.callLimit,
+      callsUsed: 0,
+      signupSource: 'api'
+    });
+
+    await user.save();
+
+    // Return response without password
+    const userResponse = {
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+      organizationName: user.organizationName,
+      phone: user.phone,
+      isActive: user.isActive,
+      createdAt: user.createdAt
+    };
+
+    res.status(201).json({
+      success: true,
+      data: {
+        user: userResponse,
+        temporaryPassword: !password ? tempPassword : undefined
+      },
+      message: `User "${user.firstName} ${user.lastName}" created successfully`
+    });
+
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create user',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
+ * @route   PUT /api/super-admin/users/:userId
+ * @desc    Update user details
+ * @access  Super Admin Only
+ */
+router.put('/users/:userId', superAdminAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { firstName, lastName, email, role, phone, isActive, organizationId } = req.body;
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Validate email if being changed
+    if (email && email !== user.email) {
+      const existingUser = await User.findOne({ 
+        email: email.toLowerCase(),
+        _id: { $ne: userId }
+      });
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          message: 'User with this email already exists'
+        });
+      }
+    }
+
+    // Validate organization if being changed
+    let organization = null;
+    if (organizationId && organizationId !== user.organizationId?.toString()) {
+      organization = await Organization.findById(organizationId);
+      if (!organization) {
+        return res.status(404).json({
+          success: false,
+          message: 'Organization not found'
+        });
+      }
+    }
+
+    // Update user fields
+    if (firstName) user.firstName = firstName.trim();
+    if (lastName) user.lastName = lastName.trim();
+    if (email) user.email = email.toLowerCase();
+    if (role && ['super_admin', 'org_admin', 'manager', 'agent', 'viewer'].includes(role)) {
+      user.role = role;
+    }
+    if (phone) user.phone = phone;
+    if (typeof isActive === 'boolean') user.isActive = isActive;
+    
+    if (organization) {
+      user.organizationId = organizationId;
+      user.organizationName = organization.name;
+      user.subscriptionPlan = organization.subscriptionPlan;
+      user.callLimit = organization.callLimit;
+    }
+
+    await user.save();
+
+    // Return updated user (without password)
+    const updatedUser = await User.findById(userId)
+      .populate('organizationId', 'name domain subscriptionPlan')
+      .select('-password -emailVerificationToken -passwordResetToken');
+
+    res.json({
+      success: true,
+      data: {
+        _id: updatedUser._id,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        organizationId: updatedUser.organizationId?._id,
+        organizationName: updatedUser.organizationId?.name,
+        phone: updatedUser.phone,
+        isActive: updatedUser.isActive,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt
+      },
+      message: 'User updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update user',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
+ * @route   DELETE /api/super-admin/users/:userId
+ * @desc    Delete user (soft delete by setting isActive to false)
+ * @access  Super Admin Only
+ */
+router.delete('/users/:userId', superAdminAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Prevent deletion of super admin users
+    if (user.role === 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot delete super admin users'
+      });
+    }
+
+    // Soft delete by setting isActive to false
+    user.isActive = false;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: `User "${user.firstName} ${user.lastName}" has been deactivated`
+    });
+
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete user',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 module.exports = router;
