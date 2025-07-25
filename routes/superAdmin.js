@@ -791,18 +791,61 @@ router.get('/organizations/:id/users', superAdminAuth, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/super-admin/users/test
+ * @desc    Test endpoint to debug user functionality
+ * @access  Super Admin Only
+ */
+router.get('/users/test', superAdminAuth, async (req, res) => {
+  try {
+    console.log('🧪 User test endpoint called');
+    console.log('🧪 User model exists:', !!User);
+    console.log('🧪 Database connected:', require('mongoose').connection.readyState === 1);
+    
+    // Test basic user query
+    const userCount = await User.countDocuments();
+    console.log('🧪 Total users in database:', userCount);
+    
+    res.json({
+      success: true,
+      message: 'User endpoint test successful',
+      data: {
+        userModelExists: !!User,
+        databaseConnected: require('mongoose').connection.readyState === 1,
+        totalUsers: userCount,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('❌ User test endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'User test endpoint failed',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
  * @route   GET /api/super-admin/users
  * @desc    Get all users across all organizations with pagination and filtering
  * @access  Super Admin Only
  */
 router.get('/users', superAdminAuth, async (req, res) => {
   try {
+    console.log('🔍 GET /users endpoint called');
+    console.log('🔍 Query params:', req.query);
+    console.log('🔍 User authenticated:', !!req.user);
+    console.log('🔍 User role:', req.user?.role);
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
     const search = req.query.search || '';
     const role = req.query.role || '';
     const organizationId = req.query.organizationId || '';
+
+    console.log('🔍 Pagination params:', { page, limit, skip });
 
     // Build filter object
     const filter = {};
@@ -823,13 +866,20 @@ router.get('/users', superAdminAuth, async (req, res) => {
       filter.organizationId = organizationId;
     }
 
+    console.log('🔍 Filter object:', filter);
+    console.log('🔍 User model exists:', !!User);
+    console.log('🔍 Database state:', require('mongoose').connection.readyState);
+
     // Get users with organization details
+    console.log('🔍 Starting User.find query...');
     const users = await User.find(filter)
       .populate('organizationId', 'name domain subscriptionPlan')
       .select('-password -emailVerificationToken -passwordResetToken')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
+      
+    console.log('🔍 Users query completed, found:', users.length);
 
     // Get total count for pagination
     const totalCount = await User.countDocuments(filter);
@@ -867,11 +917,16 @@ router.get('/users', superAdminAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error('❌ Error fetching users:', error);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch users',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: error.message,
+      errorName: error.name,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -883,7 +938,13 @@ router.get('/users', superAdminAuth, async (req, res) => {
  */
 router.post('/users', superAdminAuth, async (req, res) => {
   try {
+    console.log('🔍 POST /users endpoint called');
+    console.log('🔍 Request body:', req.body);
+    console.log('🔍 User authenticated:', !!req.user);
+    console.log('🔍 User role:', req.user?.role);
+    
     const { firstName, lastName, email, role, organizationId, phone, password } = req.body;
+    console.log('🔍 Extracted fields:', { firstName, lastName, email, role, organizationId, phone: !!phone, password: !!password });
 
     // Validate required fields
     const errors = [];
@@ -975,11 +1036,16 @@ router.post('/users', superAdminAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('❌ Error creating user:', error);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to create user',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: error.message,
+      errorName: error.name,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
