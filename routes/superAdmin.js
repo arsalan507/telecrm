@@ -12,6 +12,7 @@ const Ticket = require('../models/Ticket');
 
 // Middleware
 const { superAdminAuth } = require('../middleware/superAdmin');
+const { auth } = require('../middleware/auth');
 
 // Validation helper
 const validateOrganizationData = (data) => {
@@ -54,6 +55,44 @@ const validateOrganizationData = (data) => {
 
   return errors;
 };
+
+// DEBUG ENDPOINT - Remove after fixing authentication
+router.post('/debug-auth', auth, async (req, res) => {
+  try {
+    console.log('🔍 Debug endpoint - User object:', req.user);
+    console.log('🔍 Debug endpoint - JWT_SECRET exists:', !!process.env.JWT_SECRET);
+    console.log('🔍 Debug endpoint - Headers:', req.headers);
+    
+    const decoded = require('jsonwebtoken').decode(req.headers.authorization?.slice(7));
+    console.log('🔍 Debug endpoint - Decoded token (unsafe):', decoded);
+    
+    res.json({
+      success: true,
+      message: 'Authentication debug info',
+      data: {
+        user: req.user ? {
+          id: req.user._id,
+          email: req.user.email,
+          role: req.user.role,
+          isActive: req.user.isActive
+        } : null,
+        jwtSecretExists: !!process.env.JWT_SECRET,
+        decodedToken: decoded,
+        headers: {
+          authorization: req.headers.authorization ? 'Bearer [token present]' : 'No authorization header',
+          userAgent: req.headers['user-agent']
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Debug endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Debug endpoint error',
+      error: error.message
+    });
+  }
+});
 
 /**
  * @route   GET /api/super-admin/organizations
@@ -268,7 +307,25 @@ router.post('/organizations', superAdminAuth, async (req, res) => {
 
     const limits = planLimits[plan];
 
-    // Create organization
+    // First create a temp user to get the ID for ownerId
+    const tempUser = new User({
+      firstName: adminUser.firstName.trim(),
+      lastName: adminUser.lastName.trim(),
+      email: adminUser.email.toLowerCase(),
+      password: adminUser.password, // Will be hashed by pre-save hook
+      phone: adminUser.phone || '',
+      organizationName: name.trim(), // Temporary - will be updated
+      role: 'org_admin',
+      isActive: true,
+      subscriptionPlan: limits.subscriptionPlan,
+      callLimit: limits.callLimit,
+      callsUsed: 0,
+      signupSource: 'super_admin'
+    });
+
+    await tempUser.save();
+
+    // Now create organization with ownerId
     const organization = new Organization({
       name: name.trim(),
       domain: domain.toLowerCase(),
@@ -281,6 +338,7 @@ router.post('/organizations', superAdminAuth, async (req, res) => {
       callLimit: limits.callLimit,
       contactLimit: limits.contactLimit,
       teamLimit: limits.teamLimit,
+      ownerId: tempUser._id, // Set the owner ID
       settings: {
         timezone: 'UTC',
         currency: 'USD',
@@ -306,28 +364,12 @@ router.post('/organizations', superAdminAuth, async (req, res) => {
 
     await organization.save();
 
-    // Create admin user
-    const user = new User({
-      firstName: adminUser.firstName.trim(),
-      lastName: adminUser.lastName.trim(),
-      email: adminUser.email.toLowerCase(),
-      password: adminUser.password, // Will be hashed by pre-save hook
-      phone: adminUser.phone || '',
-      organizationId: organization._id,
-      organizationName: organization.name,
-      role: 'org_admin',
-      isActive: true,
-      subscriptionPlan: organization.subscriptionPlan,
-      callLimit: organization.callLimit,
-      callsUsed: 0,
-      signupSource: 'super_admin'
-    });
+    // Update user with organizationId
+    tempUser.organizationId = organization._id;
+    tempUser.organizationName = organization.name;
+    await tempUser.save();
 
-    await user.save();
-
-    // Update organization with owner reference
-    organization.ownerId = user._id;
-    await organization.save();
+    const user = tempUser; // Rename for consistency with response code
 
     // Return success response
     res.status(201).json({

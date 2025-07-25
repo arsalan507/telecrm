@@ -69,9 +69,25 @@ app.use(cors({
 
 app.use(express.json());
 
-// Add super admin routes back
+// Import all route modules
 const superAdminRoute = require('./routes/superAdmin');
+const authRoutes = require('./routes/auth');
+const ticketRoutes = require('./routes/tickets');
+const callLogRoutes = require('./routes/callLogs');
+const notificationRoutes = require('./routes/notifications');
+const organizationRoutes = require('./routes/organizations');
+const contactRoutes = require('./routes/contacts');
+const invitationRoutes = require('./routes/invitations');
+
+// Mount all routes
 app.use('/api/super-admin', superAdminRoute);
+app.use('/api/auth', authRoutes);
+app.use('/api/tickets', ticketRoutes);
+app.use('/api/call-logs', callLogRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/organizations', organizationRoutes);
+app.use('/api/contacts', contactRoutes);
+app.use('/api/invitations', invitationRoutes);
 
 // Simple test routes
 app.get('/', (req, res) => {
@@ -82,11 +98,37 @@ app.get('/', (req, res) => {
     endpoints: {
       superAdmin: [
         'GET /api/super-admin/organizations',
-        'POST /api/super-admin/organizations',
+        'POST /api/super-admin/organizations', 
         'PUT /api/super-admin/organizations/:id',
         'DELETE /api/super-admin/organizations/:id',
         'GET /api/super-admin/organizations/:id/users',
-        'GET /api/super-admin/stats'
+        'GET /api/super-admin/stats',
+        'POST /api/super-admin/debug-auth'
+      ],
+      auth: [
+        'POST /api/auth/register',
+        'POST /api/auth/login'
+      ],
+      tickets: [
+        'GET /api/tickets',
+        'GET /api/tickets/stats',
+        'POST /api/tickets'
+      ],
+      callLogs: [
+        'GET /api/call-logs',
+        'POST /api/call-logs'
+      ],
+      notifications: [
+        'GET /api/notifications',
+        'GET /api/notifications/unread'
+      ],
+      organizations: [
+        'GET /api/organizations',
+        'POST /api/organizations'
+      ],
+      contacts: [
+        'GET /api/contacts',
+        'POST /api/contacts'
       ]
     }
   });

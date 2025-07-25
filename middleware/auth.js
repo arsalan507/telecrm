@@ -108,12 +108,21 @@ const auth = async (req, res, next) => {
     console.error('❌ Auth middleware error:', error);
     console.error('❌ Auth middleware error name:', error.name);
     console.error('❌ Auth middleware error message:', error.message);
+    console.error('❌ Auth middleware error stack:', error.stack);
+    
+    // Additional debugging information
+    console.error('❌ Auth middleware - JWT_SECRET exists:', !!process.env.JWT_SECRET);
+    console.error('❌ Auth middleware - Request headers:', req.headers);
     
     if (error.name === 'JsonWebTokenError') {
       console.log('❌ Auth middleware - Invalid JWT token');
       return res.status(401).json({
         success: false,
-        message: 'Invalid token.'
+        message: 'Invalid token.',
+        debug: process.env.NODE_ENV === 'development' ? {
+          error: error.message,
+          jwtSecretExists: !!process.env.JWT_SECRET
+        } : undefined
       });
     }
     
@@ -121,7 +130,24 @@ const auth = async (req, res, next) => {
       console.log('❌ Auth middleware - Token expired');
       return res.status(401).json({
         success: false,
-        message: 'Token expired. Please login again.'
+        message: 'Token expired. Please login again.',
+        debug: process.env.NODE_ENV === 'development' ? {
+          error: error.message,
+          expiredAt: error.expiredAt
+        } : undefined
+      });
+    }
+    
+    // Database connection errors
+    if (error.name === 'MongoNetworkError' || error.name === 'MongoServerSelectionError') {
+      console.log('❌ Auth middleware - Database connection error');
+      return res.status(500).json({
+        success: false,
+        message: 'Database connection error.',
+        debug: process.env.NODE_ENV === 'development' ? {
+          error: error.message,
+          errorName: error.name
+        } : undefined
       });
     }
     
@@ -129,7 +155,12 @@ const auth = async (req, res, next) => {
     res.status(500).json({
       success: false,
       message: 'Server error in authentication.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      debug: process.env.NODE_ENV === 'development' ? {
+        error: error.message,
+        errorName: error.name,
+        stack: error.stack,
+        jwtSecretExists: !!process.env.JWT_SECRET
+      } : undefined
     });
   }
 };
