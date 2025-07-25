@@ -89,40 +89,27 @@ app.use('/api/organizations', organizationRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/invitations', invitationRoutes);
 
-// User management redirects to super-admin endpoints
-// This allows frontend to call /api/users and get redirected to /api/super-admin/users
+// User management routes - redirect to super-admin endpoints using proper HTTP redirects
 app.get('/api/users', (req, res) => {
-  // Redirect GET /api/users to super-admin endpoint with query params
   const queryString = new URLSearchParams(req.query).toString();
   const redirectUrl = `/api/super-admin/users${queryString ? `?${queryString}` : ''}`;
-  console.log('🔄 Redirecting GET /api/users to', redirectUrl);
-  req.url = redirectUrl;
-  req.originalUrl = redirectUrl;
-  superAdminRoute(req, res);
+  console.log('🔄 HTTP Redirect GET /api/users to', redirectUrl);
+  res.redirect(302, redirectUrl);
 });
 
 app.post('/api/users', (req, res) => {
-  // Redirect POST /api/users to super-admin endpoint
-  console.log('🔄 Redirecting POST /api/users to /api/super-admin/users');
-  req.url = '/users';
-  req.originalUrl = '/api/super-admin/users';
-  superAdminRoute(req, res);
+  console.log('🔄 HTTP Redirect POST /api/users to /api/super-admin/users');
+  res.redirect(307, '/api/super-admin/users');
 });
 
 app.put('/api/users/:userId', (req, res) => {
-  // Redirect PUT /api/users/:userId to super-admin endpoint
-  console.log('🔄 Redirecting PUT /api/users/:userId to /api/super-admin/users/:userId');
-  req.url = `/users/${req.params.userId}`;
-  req.originalUrl = `/api/super-admin/users/${req.params.userId}`;
-  superAdminRoute(req, res);
+  console.log('🔄 HTTP Redirect PUT /api/users/:userId to /api/super-admin/users/:userId');
+  res.redirect(307, `/api/super-admin/users/${req.params.userId}`);
 });
 
 app.delete('/api/users/:userId', (req, res) => {
-  // Redirect DELETE /api/users/:userId to super-admin endpoint
-  console.log('🔄 Redirecting DELETE /api/users/:userId to /api/super-admin/users/:userId');
-  req.url = `/users/${req.params.userId}`;
-  req.originalUrl = `/api/super-admin/users/${req.params.userId}`;
-  superAdminRoute(req, res);
+  console.log('🔄 HTTP Redirect DELETE /api/users/:userId to /api/super-admin/users/:userId');
+  res.redirect(307, `/api/super-admin/users/${req.params.userId}`);
 });
 
 // Simple test routes
@@ -171,10 +158,10 @@ app.get('/', (req, res) => {
         'POST /api/contacts'
       ],
       users: [
-        'GET /api/users (→ /api/super-admin/users)',
-        'POST /api/users (→ /api/super-admin/users)',
-        'PUT /api/users/:userId (→ /api/super-admin/users/:userId)',
-        'DELETE /api/users/:userId (→ /api/super-admin/users/:userId)'
+        'GET /api/users (HTTP 302 → /api/super-admin/users)',
+        'POST /api/users (HTTP 307 → /api/super-admin/users)',
+        'PUT /api/users/:userId (HTTP 307 → /api/super-admin/users/:userId)',
+        'DELETE /api/users/:userId (HTTP 307 → /api/super-admin/users/:userId)'
       ]
     }
   });
