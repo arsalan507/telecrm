@@ -281,11 +281,15 @@ router.post('/register', async (req, res) => {
 // @access  Public
 router.post('/login', async (req, res) => {
     try {
+        console.log('🔐 Login request received:', { email: req.body.email });
+        console.log('🔐 JWT_SECRET exists:', !!process.env.JWT_SECRET);
+        console.log('🔐 MONGODB_URI exists:', !!process.env.MONGODB_URI);
+        
         // Connect to database for this specific route
         const connectDB = require('../config/database');
+        console.log('🔐 Attempting database connection...');
         await connectDB();
-
-        console.log('🔐 Login request received:', { email: req.body.email });
+        console.log('🔐 Database connection successful');
         
         const { email, password } = req.body;
 
@@ -298,8 +302,13 @@ router.post('/login', async (req, res) => {
             });
         }
 
+        console.log('🔐 Looking for user:', email.toLowerCase());
         // Find user
         const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+        console.log('🔐 User found:', !!user);
+        console.log('🔐 User role:', user?.role);
+        console.log('🔐 User has password field:', !!user?.password);
+        
         if (!user) {
             console.log('❌ User not found:', email);
             return res.status(401).json({
@@ -308,8 +317,11 @@ router.post('/login', async (req, res) => {
             });
         }
 
+        console.log('🔐 Comparing password...');
         // Check password
         const isPasswordValid = await user.comparePassword(password);
+        console.log('🔐 Password valid:', isPasswordValid);
+        
         if (!isPasswordValid) {
             console.log('❌ Invalid password for:', email);
             return res.status(401).json({
@@ -318,11 +330,15 @@ router.post('/login', async (req, res) => {
             });
         }
 
+        console.log('🔐 Updating last login...');
         // Update last login
         await user.updateLastLogin();
+        console.log('🔐 Last login updated');
 
+        console.log('🔐 Generating auth token...');
         // Generate token
         const token = user.generateAuthToken();
+        console.log('🔐 Token generated successfully');
 
         // Response
         res.json({
@@ -352,9 +368,28 @@ router.post('/login', async (req, res) => {
 
     } catch (error) {
         console.error('❌ Login error:', error);
+        console.error('❌ Error name:', error.name);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+        
+        // Check for specific error types
+        if (error.message?.includes('JWT_SECRET')) {
+            console.error('❌ JWT_SECRET environment variable issue');
+        }
+        
+        if (error.name === 'MongoNetworkError' || error.name === 'MongoServerSelectionError') {
+            console.error('❌ Database connection error');
+        }
+        
         res.status(500).json({
             success: false,
-            message: 'Server error. Please try again later.'
+            message: 'Server error. Please try again later.',
+            debug: process.env.NODE_ENV === 'development' ? {
+                error: error.message,
+                errorName: error.name,
+                jwtSecretExists: !!process.env.JWT_SECRET,
+                mongoUriExists: !!process.env.MONGODB_URI
+            } : undefined
         });
     }
 });
