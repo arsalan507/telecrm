@@ -352,6 +352,7 @@ router.post('/login', async (req, res) => {
                 fullName: user.fullName,
                 email: user.email,
                 phone: user.phone,
+                organizationId: user.organizationId,
                 organizationName: user.organizationName,
                 role: user.role,
                 permissions: user.permissions,
