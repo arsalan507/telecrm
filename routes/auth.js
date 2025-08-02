@@ -324,9 +324,11 @@ router.post('/login', async (req, res) => {
         }
 
         console.log('🔐 Updating last login...');
-        // Update last login
-        await user.updateLastLogin();
-        console.log('🔐 Last login updated');
+        // Update last login with IP and user agent tracking
+        const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+        const userAgent = req.get('User-Agent') || 'unknown';
+        await user.updateLastLogin(ipAddress, userAgent);
+        console.log('🔐 Last login updated with tracking');
 
         console.log('🔐 Generating auth token...');
         // Generate token

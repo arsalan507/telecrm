@@ -899,6 +899,8 @@ router.get('/users', superAdminAuth, async (req, res) => {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       lastLoginAt: user.lastLoginAt,
+      loginCount: user.loginCount || 0,
+      loginHistory: user.loginHistory || [],
       subscriptionPlan: user.organizationId?.subscriptionPlan
     }));
 

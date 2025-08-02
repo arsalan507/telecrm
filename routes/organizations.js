@@ -127,7 +127,7 @@ router.get('/:organizationId/users',
 
             const users = await User.find(query)
                 .populate('teamId', 'name')
-                .select('-password')
+                .select('-password -emailVerificationToken -passwordResetToken')
                 .sort({ createdAt: -1 })
                 .limit(limit * 1)
                 .skip((page - 1) * limit);

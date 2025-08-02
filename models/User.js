@@ -185,6 +185,27 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date
   },
+  lastLoginAt: {
+    type: Date
+  },
+  loginCount: {
+    type: Number,
+    default: 0
+  },
+  loginHistory: [{
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    ipAddress: {
+      type: String,
+      default: 'unknown'
+    },
+    userAgent: {
+      type: String,
+      default: 'unknown'
+    }
+  }],
   
   // Profile Information
   avatar: {
@@ -391,9 +412,26 @@ userSchema.methods.generateAuthToken = function() {
   );
 };
 
-// Update last login
-userSchema.methods.updateLastLogin = async function() {
-  this.lastLogin = new Date();
+// Update last login with enhanced tracking
+userSchema.methods.updateLastLogin = async function(ipAddress = 'unknown', userAgent = 'unknown') {
+  const now = new Date();
+  
+  this.lastLogin = now;
+  this.lastLoginAt = now;
+  this.loginCount += 1;
+  
+  // Add to login history (keep last 50 entries)
+  this.loginHistory.unshift({
+    timestamp: now,
+    ipAddress: ipAddress || 'unknown',
+    userAgent: userAgent || 'unknown'
+  });
+  
+  // Keep only last 50 login records to prevent database bloat
+  if (this.loginHistory.length > 50) {
+    this.loginHistory = this.loginHistory.slice(0, 50);
+  }
+  
   return await this.save({ validateBeforeSave: false });
 };
 
