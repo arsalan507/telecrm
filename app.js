@@ -236,12 +236,8 @@ app.post('/api/reset-super-admin', async (req, res) => {
       });
     }
     
-    // Hash the new password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-    
-    // Update the password
-    user.password = hashedPassword;
+    // Update the password (let the User model's pre-save hook handle hashing)
+    user.password = newPassword;
     await user.save();
     
     console.log('✅ Super admin password updated successfully');
