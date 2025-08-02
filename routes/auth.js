@@ -50,10 +50,7 @@ router.get('/debug', async (req, res) => {
 // @access  Public
 router.post('/register', async (req, res) => {
     try {
-        // Connect to database for this specific route
-        const connectDB = require('../config/database');
-        await connectDB();
-
+        // Use global database connection (like super-admin endpoints)
         console.log('📝 Registration request received:', req.body);
         
         const { firstName, lastName, email, phone, organizationName, password } = req.body;
@@ -285,11 +282,7 @@ router.post('/login', async (req, res) => {
         console.log('🔐 JWT_SECRET exists:', !!process.env.JWT_SECRET);
         console.log('🔐 MONGODB_URI exists:', !!process.env.MONGODB_URI);
         
-        // Connect to database for this specific route
-        const connectDB = require('../config/database');
-        console.log('🔐 Attempting database connection...');
-        await connectDB();
-        console.log('🔐 Database connection successful');
+        // Use global database connection (like super-admin endpoints)
         
         const { email, password } = req.body;
 
@@ -400,9 +393,7 @@ router.post('/login', async (req, res) => {
 // @access  Public
 router.post('/check-email', async (req, res) => {
     try {
-        // Connect to database for this specific route
-        const connectDB = require('../config/database');
-        await connectDB();
+        // Use global database connection (like super-admin endpoints)
 
         const { email } = req.body;
 
