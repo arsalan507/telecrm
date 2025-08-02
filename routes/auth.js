@@ -50,9 +50,7 @@ router.get('/debug', async (req, res) => {
 // @access  Public
 router.post('/register', async (req, res) => {
     try {
-        // Connect to database for this specific route
-        const connectDB = require('../config/database');
-        await connectDB();
+        // Use existing database connection (already established in app.js)
 
         console.log('📝 Registration request received:', req.body);
         
@@ -285,11 +283,7 @@ router.post('/login', async (req, res) => {
         console.log('🔐 JWT_SECRET exists:', !!process.env.JWT_SECRET);
         console.log('🔐 MONGODB_URI exists:', !!process.env.MONGODB_URI);
         
-        // Connect to database for this specific route
-        const connectDB = require('../config/database');
-        console.log('🔐 Attempting database connection...');
-        await connectDB();
-        console.log('🔐 Database connection successful');
+        // Use existing database connection (already established in app.js)
         
         const { email, password } = req.body;
 
@@ -400,9 +394,7 @@ router.post('/login', async (req, res) => {
 // @access  Public
 router.post('/check-email', async (req, res) => {
     try {
-        // Connect to database for this specific route
-        const connectDB = require('../config/database');
-        await connectDB();
+        // Use existing database connection (already established in app.js)
 
         const { email } = req.body;
 
