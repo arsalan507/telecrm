@@ -408,6 +408,92 @@ router.delete('/organizations/:id', supabaseSuperAdminAuth, async (req, res) => 
   }
 });
 
+// @route   POST /api/super-admin/users
+// @desc    Create new user
+// @access  Super Admin Only
+router.post('/users', supabaseSuperAdminAuth, async (req, res) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      role,
+      organizationName,
+      phone
+    } = req.body;
+
+    console.log('👤 Creating new user:', email);
+
+    // Validation
+    if (!firstName || !lastName || !email || !password || !role || !organizationName) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required: firstName, lastName, email, password, role, organizationName'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await SupabaseUser.findByEmail(email);
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
+    }
+
+    // Get organization
+    const organization = await SupabaseOrganization.findByName(organizationName);
+    if (!organization) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization not found'
+      });
+    }
+
+    // Create user
+    const newUser = await SupabaseUser.create({
+      first_name: firstName,
+      last_name: lastName,
+      email: email.toLowerCase(),
+      password,
+      role,
+      organization_id: organization.id,
+      organization_name: organizationName,
+      phone,
+      is_active: true,
+      subscription_plan: 'free',
+      call_limit: 50,
+      calls_used: 0,
+      signup_source: 'super_admin'
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      data: {
+        id: newUser.id,
+        firstName: newUser.first_name,
+        lastName: newUser.last_name,
+        email: newUser.email,
+        role: newUser.role,
+        organizationName: newUser.organization_name,
+        phone: newUser.phone,
+        isActive: newUser.is_active,
+        createdAt: newUser.created_at
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error creating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create user',
+      error: error.message
+    });
+  }
+});
+
 // @route   DELETE /api/super-admin/users/:id
 // @desc    Delete user
 // @access  Super Admin Only
