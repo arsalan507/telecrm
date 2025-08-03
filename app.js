@@ -81,7 +81,8 @@ const invitationRoutes = require('./routes/invitations');
 
 // Mount all routes
 app.use('/api/super-admin', superAdminRoute);
-app.use('/api/auth', authRoutes);
+// Switch to Supabase authentication
+app.use('/api/auth', require('./routes/supabaseAuth'));
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/call-logs', callLogRoutes);
 app.use('/api/notifications', notificationRoutes);
