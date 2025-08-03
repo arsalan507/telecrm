@@ -84,8 +84,9 @@ const invitationRoutes = require('./routes/invitations');
 app.use('/api/super-admin', require('./routes/supabaseSuperAdmin'));
 // Switch to Supabase authentication
 app.use('/api/auth', require('./routes/supabaseAuth'));
-app.use('/api/tickets', ticketRoutes);
-app.use('/api/call-logs', callLogRoutes);
+// Switch to Supabase-based routes
+app.use('/api/tickets', require('./routes/supabaseTickets'));
+app.use('/api/call-logs', require('./routes/supabaseCallLogs'));
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/contacts', contactRoutes);
