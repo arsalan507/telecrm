@@ -453,19 +453,18 @@ router.post('/users', supabaseSuperAdminAuth, async (req, res) => {
 
     // Create user
     const newUser = await SupabaseUser.create({
-      first_name: firstName,
-      last_name: lastName,
+      firstName: firstName,
+      lastName: lastName,
       email: email.toLowerCase(),
       password,
       role,
-      organization_id: organization.id,
-      organization_name: organizationName,
+      organizationId: organization.id,
+      organizationName: organizationName,
       phone,
-      is_active: true,
-      subscription_plan: 'free',
-      call_limit: 50,
-      calls_used: 0,
-      signup_source: 'super_admin'
+      subscriptionPlan: 'free',
+      callLimit: 50,
+      callsUsed: 0,
+      signupSource: 'super_admin'
     });
 
     res.status(201).json({
