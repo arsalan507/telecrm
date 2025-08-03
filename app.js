@@ -80,7 +80,8 @@ const contactRoutes = require('./routes/contacts');
 const invitationRoutes = require('./routes/invitations');
 
 // Mount all routes
-app.use('/api/super-admin', superAdminRoute);
+// Switch to Supabase super-admin routes
+app.use('/api/super-admin', require('./routes/supabaseSuperAdmin'));
 // Switch to Supabase authentication
 app.use('/api/auth', require('./routes/supabaseAuth'));
 app.use('/api/tickets', ticketRoutes);
