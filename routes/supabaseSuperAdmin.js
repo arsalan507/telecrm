@@ -464,7 +464,7 @@ router.post('/users', supabaseSuperAdminAuth, async (req, res) => {
       subscriptionPlan: 'free',
       callLimit: 50,
       callsUsed: 0,
-      signupSource: 'super_admin'
+      signupSource: 'api'
     });
 
     res.status(201).json({
