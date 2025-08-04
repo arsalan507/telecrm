@@ -47,20 +47,20 @@ class SupabaseUser {
       const hashedPassword = await bcrypt.hash(userData.password, 12);
       
       const userToInsert = {
-        first_name: userData.firstName,
-        last_name: userData.lastName,
+        first_name: userData.firstName || userData.first_name,
+        last_name: userData.lastName || userData.last_name,
         email: userData.email.toLowerCase(),
         password_hash: hashedPassword,
         phone: userData.phone,
-        organization_id: userData.organizationId,
-        organization_name: userData.organizationName,
+        organization_id: userData.organizationId || userData.organization_id,
+        organization_name: userData.organizationName || userData.organization_name,
         role: userData.role || 'org_admin',
         permissions: userData.permissions || [],
-        subscription_plan: userData.subscriptionPlan || 'free',
-        call_limit: userData.callLimit || 50,
-        calls_used: userData.callsUsed || 0,
-        signup_source: userData.signupSource || 'web',
-        is_active: true,
+        subscription_plan: userData.subscriptionPlan || userData.subscription_plan || 'free',
+        call_limit: userData.callLimit || userData.call_limit || 50,
+        calls_used: userData.callsUsed || userData.calls_used || 0,
+        signup_source: userData.signupSource || userData.signup_source || 'web',
+        is_active: userData.is_active !== undefined ? userData.is_active : true,
         login_count: 0
       };
 
