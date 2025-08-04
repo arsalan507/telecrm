@@ -115,6 +115,20 @@ router.get('/organizations', supabaseSuperAdminAuth, async (req, res) => {
 
     console.log('🔍 Organizations found:', organizations?.length || 0);
 
+    // Get user counts for each organization
+    const orgIds = organizations.map(org => org.id);
+    const { data: userCounts } = await supabase
+      .from('users')
+      .select('organization_id')
+      .in('organization_id', orgIds)
+      .eq('is_active', true);
+
+    // Create user count mapping
+    const userCountMap = {};
+    userCounts?.forEach(user => {
+      userCountMap[user.organization_id] = (userCountMap[user.organization_id] || 0) + 1;
+    });
+
     // Format response data
     const formattedOrganizations = organizations.map(org => ({
       _id: org.id,
@@ -127,6 +141,7 @@ router.get('/organizations', supabaseSuperAdminAuth, async (req, res) => {
       subscriptionPlan: org.subscription_plan,
       subscriptionStatus: org.subscription_status,
       userLimit: org.user_limit,
+      userCount: userCountMap[org.id] || 0,
       callLimit: org.call_limit,
       contactLimit: org.contact_limit,
       teamLimit: org.team_limit,

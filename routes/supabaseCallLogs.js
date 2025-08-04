@@ -254,8 +254,10 @@ router.get('/', supabaseAuth, async (req, res) => {
         users!inner(first_name, last_name, email)
       `, { count: 'exact' });
 
-    // Apply organization filter
-    query = query.eq('organization_id', req.user.organization_id);
+    // Apply organization filter (skip for super_admin)
+    if (req.user.role !== 'super_admin' && req.user.organization_id) {
+      query = query.eq('organization_id', req.user.organization_id);
+    }
 
     // Role-based access control
     if (req.user.role === 'agent' || req.user.role === 'viewer') {
