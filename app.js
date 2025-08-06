@@ -78,6 +78,7 @@ const notificationRoutes = require('./routes/notifications');
 const organizationRoutes = require('./routes/organizations');
 const contactRoutes = require('./routes/contacts');
 const invitationRoutes = require('./routes/invitations');
+const demoRequestRoutes = require('./routes/demoRequests');
 
 // Mount all routes
 // Switch to Supabase super-admin routes
@@ -91,6 +92,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/invitations', invitationRoutes);
+app.use('/api/demo-requests', demoRequestRoutes);
 
 // User management routes - direct proxy to super-admin endpoints
 app.use('/api/users', superAdminRoute);
@@ -131,6 +133,11 @@ app.get('/', (req, res) => {
       notifications: [
         'GET /api/notifications',
         'GET /api/notifications/unread'
+      ],
+      demoRequests: [
+        'POST /api/demo-requests',
+        'GET /api/demo-requests',
+        'GET /api/demo-requests/analytics'
       ],
       organizations: [
         'GET /api/organizations',
