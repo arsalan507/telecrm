@@ -374,4 +374,50 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
+// @route   GET /api/demo-requests/health
+// @desc    Health check for demo requests system
+// @access  Public
+router.get('/health', async (req, res) => {
+  try {
+    // Check if demo_requests table exists
+    const { data, error } = await supabase
+      .from('demo_requests')
+      .select('count', { count: 'exact', head: true });
+
+    if (error && error.code === '42P01') {
+      return res.status(503).json({
+        success: false,
+        message: 'Demo requests table not found. Please run migration first.',
+        setup_required: true,
+        migration_file: 'migrations/002_demo_requests.sql'
+      });
+    }
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      message: 'Demo requests system is healthy',
+      table_exists: true,
+      total_requests: data || 0,
+      endpoints: [
+        'POST /api/demo-requests - Submit demo request',
+        'GET /api/demo-requests - List requests',
+        'GET /api/demo-requests/analytics - Analytics',
+        'GET /api/demo-requests/health - Health check'
+      ]
+    });
+
+  } catch (error) {
+    console.error('❌ Health check error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Health check failed',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
