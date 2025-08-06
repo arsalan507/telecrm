@@ -1,5 +1,10 @@
 // services/emailService.js - Email Service for Demo Requests
-const nodemailer = require('nodemailer');
+let nodemailer;
+try {
+  nodemailer = require('nodemailer');
+} catch (error) {
+  console.warn('⚠️ Nodemailer not available. Email features disabled.');
+}
 
 class EmailService {
   constructor() {
@@ -8,6 +13,11 @@ class EmailService {
   }
 
   initializeTransporter() {
+    if (!nodemailer) {
+      console.warn('⚠️ Email service disabled - nodemailer not available');
+      return;
+    }
+    
     // Configure based on environment
     if (process.env.NODE_ENV === 'production') {
       // Production email configuration (e.g., SendGrid, AWS SES, etc.)
@@ -32,6 +42,11 @@ class EmailService {
   }
 
   async sendDemoConfirmation(recipientEmail, personalizedContent, requestData) {
+    if (!this.transporter) {
+      console.warn('📧 Email service not configured - skipping confirmation email');
+      return { success: false, error: 'Email service not available' };
+    }
+    
     try {
       const { subject, greeting, personalNote, urgencyNote } = personalizedContent;
       
@@ -162,6 +177,11 @@ class EmailService {
   }
 
   async sendInternalAlert(requestData, leadScore, intentLevel) {
+    if (!this.transporter) {
+      console.warn('📧 Email service not configured - skipping internal alert');
+      return;
+    }
+    
     try {
       const alertEmail = process.env.SALES_ALERT_EMAIL || 'sales@calltrackerpro.com';
       
