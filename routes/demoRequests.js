@@ -2,7 +2,14 @@
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../config/supabase');
-const emailService = require('../services/emailService');
+
+// Load email service with error handling
+let emailService;
+try {
+  emailService = require('../services/emailService');
+} catch (error) {
+  console.warn('⚠️ Email service disabled:', error.message);
+}
 
 // Lead scoring algorithm based on psychological profiling
 const calculateLeadScore = (data) => {
@@ -219,17 +226,21 @@ router.post('/', async (req, res) => {
     // Generate personalized email content
     const emailContent = generateEmailContent(req.body, urgencyScore, intentLevel);
     
-    // Send confirmation email
-    try {
-      await emailService.sendDemoConfirmation(email, emailContent, req.body);
-      
-      // Send internal sales alert for high-intent leads
-      if (intentLevel === 'urgent' || intentLevel === 'high') {
-        await emailService.sendInternalAlert(req.body, urgencyScore, intentLevel);
+    // Send confirmation email if available
+    if (emailService) {
+      try {
+        await emailService.sendDemoConfirmation(email, emailContent, req.body);
+        
+        // Send internal sales alert for high-intent leads
+        if (intentLevel === 'urgent' || intentLevel === 'high') {
+          await emailService.sendInternalAlert(req.body, urgencyScore, intentLevel);
+        }
+      } catch (emailError) {
+        console.error('📧 Email sending failed:', emailError);
+        // Don't fail the request if email fails
       }
-    } catch (emailError) {
-      console.error('📧 Email sending failed:', emailError);
-      // Don't fail the request if email fails
+    } else {
+      console.log('📧 Email service not available - skipping email notifications');
     }
 
     // Response with psychological insights for sales team
