@@ -78,7 +78,7 @@ const notificationRoutes = require('./routes/notifications');
 const organizationRoutes = require('./routes/organizations');
 const contactRoutes = require('./routes/contacts');
 const invitationRoutes = require('./routes/invitations');
-const demoRequestRoutes = require('./routes/demoRequests');
+const demoRequestRoutes = require('./routes/demoRequestsSimplified');
 
 // Mount all routes
 // Switch to Supabase super-admin routes

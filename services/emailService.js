@@ -176,7 +176,7 @@ class EmailService {
     return priorityMap[priority] || priority;
   }
 
-  async sendInternalAlert(requestData, leadScore, intentLevel) {
+  async sendInternalAlert(requestData, leadScore, priority) {
     if (!this.transporter) {
       console.warn('📧 Email service not configured - skipping internal alert');
       return;
@@ -185,30 +185,46 @@ class EmailService {
     try {
       const alertEmail = process.env.SALES_ALERT_EMAIL || 'sales@calltrackerpro.com';
       
-      const subject = intentLevel === 'urgent' ? 
-        '🚨 URGENT: High-Intent Demo Request' : 
-        `🎯 New ${intentLevel.toUpperCase()} Intent Demo Request`;
+      const subject = requestData.urgency === 'urgent' ? 
+        '🚨 URGENT: High-Priority Demo Request' : 
+        `🎯 New ${priority.toUpperCase()} Priority Demo Request`;
+
+      const painPointLabels = {
+        'wasted-ad-spend': 'Can\'t track which campaigns drive calls',
+        'poor-roi-tracking': 'Can\'t prove ROI to clients/management',
+        'missed-opportunities': 'Missing calls or losing deals',
+        'manual-tracking': 'Time-consuming manual processes',
+        'competitor-advantage': 'Competitors have better insights',
+        'other': 'Custom pain point'
+      };
 
       const htmlContent = `
-        <h2>New Demo Request Alert</h2>
+        <h2>New Demo Request Alert - ${priority.toUpperCase()} Priority</h2>
         <div style="background: #f0f0f0; padding: 20px; border-radius: 5px;">
-          <h3>Contact Info</h3>
+          <h3>Contact Information</h3>
           <p><strong>Name:</strong> ${requestData.name}</p>
           <p><strong>Email:</strong> ${requestData.email}</p>
+          <p><strong>Company:</strong> ${requestData.company || 'Not provided'}</p>
+          <p><strong>Phone:</strong> ${requestData.phone || 'Not provided'}</p>
           
-          <h3>Psychological Profile</h3>
-          <p><strong>Trigger Event:</strong> ${requestData.triggerEvent}</p>
-          <p><strong>Cost of Inaction:</strong> ${requestData.costOfInaction}</p>
-          <p><strong>Personal Win:</strong> ${requestData.personalWin}</p>
-          <p><strong>Decision Style:</strong> ${requestData.decisionStyle}/100 (${requestData.decisionStyle < 50 ? 'Data-driven' : 'Story-driven'})</p>
+          <h3>Sales Qualification</h3>
+          <p><strong>Urgency:</strong> ${requestData.urgency?.toUpperCase()}</p>
+          <p><strong>Pain Point:</strong> ${painPointLabels[requestData.currentPain] || 'Not specified'}</p>
+          <p><strong>Budget:</strong> ${requestData.budget || 'Not specified'}</p>
+          <p><strong>Timeline:</strong> ${requestData.timeline || 'Not specified'}</p>
+          <p><strong>Segment:</strong> ${requestData.segment || 'Unknown'}</p>
           
           <h3>Lead Intelligence</h3>
-          <p><strong>Urgency Score:</strong> ${leadScore}/100</p>
-          <p><strong>Intent Level:</strong> ${intentLevel.toUpperCase()}</p>
-          <p><strong>Stakeholders:</strong> ${requestData.stakeholders?.join(', ') || 'Not specified'}</p>
+          <p><strong>Lead Score:</strong> ${leadScore}/100</p>
+          <p><strong>Priority:</strong> ${priority.toUpperCase()}</p>
           
-          <h3>Magic Wand Insight</h3>
-          <p>${requestData.magicWandInsight || 'Not provided'}</p>
+          <h3>Follow-up Actions</h3>
+          <ul>
+            ${requestData.followUpActions?.map(action => `<li>${action}</li>`).join('') || '<li>Standard follow-up process</li>'}
+          </ul>
+          
+          <h3>Additional Message</h3>
+          <p>${requestData.message || 'No additional message provided'}</p>
         </div>
       `;
 
