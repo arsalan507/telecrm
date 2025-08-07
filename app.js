@@ -1,7 +1,7 @@
 // Minimal Express app to test deployment issues
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
+// const cors = require('cors'); // Removed to use manual CORS headers
 const mongoose = require('mongoose');
 
 const app = express();
