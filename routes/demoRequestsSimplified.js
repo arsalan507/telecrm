@@ -219,7 +219,7 @@ router.post('/', async (req, res) => {
         timeline: timeline,
         message: message?.trim(),
         priority: priority,
-        segment: segment,
+        segment: segment, 
         lead_score: leadScore,
         status: 'new',
         lead_source: 'demo-form',
