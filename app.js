@@ -204,6 +204,21 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// New test endpoint to verify CORS configuration
+app.get('/api/cors-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CORS test endpoint working',
+    timestamp: new Date().toISOString(),
+    corsHeaders: {
+      origin: res.getHeader('Access-Control-Allow-Origin'),
+      methods: res.getHeader('Access-Control-Allow-Methods'),
+      headers: res.getHeader('Access-Control-Allow-Headers'),
+      maxAge: res.getHeader('Access-Control-Max-Age')
+    }
+  });
+});
+
 // TEMPORARY: Super Admin Password Reset Endpoint
 // Remove this after resetting your password!
 app.post('/api/reset-super-admin', async (req, res) => {
