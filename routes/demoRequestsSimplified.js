@@ -230,6 +230,12 @@ router.post('/', async (req, res) => {
 
     if (error) {
       console.error('❌ Database error:', error);
+      console.error('❌ Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
       throw error;
     }
 
@@ -428,9 +434,12 @@ router.get('/analytics', async (req, res) => {
 router.get('/health', async (req, res) => {
   try {
     // Check if demo_requests table exists and get count
+    console.log('🔍 Checking demo_requests table...');
     const { count, error } = await supabase
       .from('demo_requests')
       .select('*', { count: 'exact', head: true });
+      
+    console.log('🔍 Table check result:', { count, error });
 
     if (error && error.code === '42P01') {
       return res.status(503).json({
