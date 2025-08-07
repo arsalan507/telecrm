@@ -21,7 +21,7 @@ router.use((req, res, next) => {
   next();
 });
 
-// Supabase-compatible authentication middleware
+// Hybrid authentication middleware (works with both MongoDB and Supabase users)
 const authenticate = async (req, res, next) => {
   try {
     console.log('🔐 Authenticating organization request...');
@@ -40,11 +40,39 @@ const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log('🔐 Token decoded:', { userId: decoded.userId, email: decoded.email, role: decoded.role });
     
-    // Get user using Supabase model
-    const user = await SupabaseUser.findById(decoded.userId);
+    let user = null;
+    
+    // Try Supabase first for org_admin users
+    try {
+      user = await SupabaseUser.findById(decoded.userId);
+      if (user) {
+        console.log('✅ Found user in Supabase:', user.email);
+        // Convert Supabase user to consistent format
+        user.organizationId = user.organization_id;
+        user.isActive = user.is_active;
+      }
+    } catch (supabaseError) {
+      console.log('ℹ️ User not found in Supabase, trying MongoDB...');
+    }
+    
+    // If not found in Supabase, try MongoDB for super_admin users
+    if (!user && decoded.role === 'super_admin') {
+      try {
+        const User = require('../models/User');
+        user = await User.findById(decoded.userId).select('-password');
+        if (user) {
+          console.log('✅ Found super admin in MongoDB:', user.email);
+          // Convert MongoDB user to consistent format
+          user.organizationId = user.organizationId;
+          user.isActive = user.isActive;
+        }
+      } catch (mongoError) {
+        console.log('ℹ️ User not found in MongoDB either');
+      }
+    }
     
     if (!user) {
-      console.log('❌ User not found:', decoded.userId);
+      console.log('❌ User not found in any database:', decoded.userId);
       return res.status(401).json({
         success: false,
         message: 'Invalid token. User not found.'
@@ -52,7 +80,7 @@ const authenticate = async (req, res, next) => {
     }
 
     // Check if user is active
-    if (!user.is_active) {
+    if (!user.isActive) {
       console.log('❌ User is inactive:', user.email);
       return res.status(401).json({
         success: false,
@@ -61,15 +89,15 @@ const authenticate = async (req, res, next) => {
     }
 
     console.log('✅ User authenticated:', { 
-      id: user.id, 
+      id: user.id || user._id, 
       email: user.email, 
       role: user.role,
-      organizationId: user.organization_id
+      organizationId: user.organizationId
     });
 
     // Add user context to request
     req.user = user;
-    req.organizationId = user.organization_id;
+    req.organizationId = user.organizationId;
     req.userRole = user.role;
     
     next();
