@@ -60,14 +60,40 @@ const connectDB = async () => {
 // Initialize database connection
 connectDB();
 
-// Basic CORS
+// Enhanced CORS configuration for dashboard
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: [
+    'https://calltracker-pro-dashboard.netlify.app',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173',
+    '*' // Allow all origins for now
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization', 
+    'x-organization-id',
+    'Accept',
+    'Origin',
+    'X-Requested-With',
+    'Cache-Control'
+  ],
+  exposedHeaders: ['set-cookie']
 }));
 
 app.use(express.json());
+
+// Handle preflight requests
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-organization-id, Accept, Origin, X-Requested-With, Cache-Control');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  res.status(200).end();
+});
 
 // Import all route modules
 const superAdminRoute = require('./routes/superAdmin');
