@@ -60,39 +60,29 @@ const connectDB = async () => {
 // Initialize database connection
 connectDB();
 
-// Enhanced CORS configuration for dashboard
-app.use(cors({
-  origin: [
-    'https://calltracker-pro-dashboard.netlify.app',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173',
-    '*' // Allow all origins for now
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization', 
-    'x-organization-id',
-    'Accept',
-    'Origin',
-    'X-Requested-With',
-    'Cache-Control'
-  ],
-  exposedHeaders: ['set-cookie']
-}));
+// Remove global CORS - use route-specific CORS only
+// Global CORS middleware removed to prevent conflicts
 
 app.use(express.json());
 
-// Handle preflight requests
-app.options('*', (req, res) => {
+// Add CORS headers to all responses
+app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-organization-id, Accept, Origin, X-Requested-With, Cache-Control');
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400');
-  res.status(200).end();
+  next();
+});
+
+// Global preflight handler with correct headers
+app.options('*', (req, res) => {
+  console.log('🔀 Preflight request for:', req.path);
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-organization-id, Accept, Origin, X-Requested-With, Cache-Control');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '0'); // Force no caching
+  res.status(204).end();
 });
 
 // Import all route modules
