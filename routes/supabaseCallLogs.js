@@ -4,6 +4,21 @@ const router = express.Router();
 const { supabase } = require('../config/supabase');
 const SupabaseUser = require('../models/SupabaseUser');
 
+// Explicit CORS middleware for call logs routes
+router.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-organization-id, Accept, Origin, X-Requested-With, Cache-Control');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
 // Supabase Authentication Middleware
 const supabaseAuth = async (req, res, next) => {
   try {
