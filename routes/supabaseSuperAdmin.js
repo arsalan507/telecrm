@@ -7,6 +7,21 @@ const SupabaseUser = require('../models/SupabaseUser');
 const SupabaseOrganization = require('../models/SupabaseOrganization');
 const { supabase } = require('../config/supabase');
 
+// Explicit CORS middleware for super admin routes
+router.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-organization-id, Accept, Origin, X-Requested-With, Cache-Control');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
 // Enhanced Super Admin Authentication Middleware
 const supabaseSuperAdminAuth = async (req, res, next) => {
   try {
