@@ -450,6 +450,16 @@ router.get('/:organizationId/subscription',
   }
 );
 
+// Test endpoint to verify Supabase routes are being used
+router.get('/test-supabase-routes', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Supabase organization routes are active',
+    timestamp: new Date().toISOString(),
+    routeFile: 'supabaseOrganizations.js'
+  });
+});
+
 // Debug endpoint to test authentication without organization validation
 router.get('/debug/auth-test', authenticate, async (req, res) => {
   try {
