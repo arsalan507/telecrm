@@ -91,7 +91,7 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 # MongoDB Configuration (Legacy Support)
-MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/telecrm?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/YOUR_DATABASE
 
 # JWT Security
 JWT_SECRET=your_super_secure_jwt_secret_key_here
