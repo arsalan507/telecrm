@@ -106,8 +106,10 @@ app.use('/api/tickets', require('./routes/supabaseTickets'));
 app.use('/api/call-logs', require('./routes/supabaseCallLogs'));
 // Use Supabase-compatible notifications routes
 app.use('/api/notifications', require('./routes/supabaseNotifications'));
-// Use Supabase-compatible organization routes
+// Use Supabase-compatible organization routes  
 app.use('/api/organizations', require('./routes/supabaseOrganizations'));
+// Backup path for organization routes to avoid conflicts
+app.use('/api/orgs-supabase', require('./routes/supabaseOrganizations'));
 app.use('/api/contacts', contactRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/demo-requests', demoRequestRoutes);
