@@ -1,6 +1,6 @@
 // api/index.js - Vercel serverless function entry point
+require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 
 // Create a minimal Express app for serverless
 const app = express();
@@ -41,33 +41,59 @@ app.get('/', (req, res) => {
   });
 });
 
-// Import routes conditionally to prevent crashes
-try {
-  // Only import Supabase routes which don't require MongoDB
-  const supabaseAuth = require('../routes/supabaseAuth');
-  const supabaseOrganizations = require('../routes/supabaseOrganizations');
-  const supabaseNotifications = require('../routes/supabaseNotifications');
-  const demoRequests = require('../routes/demoRequestsSimplified');
-  
-  app.use('/api/auth', supabaseAuth);
-  app.use('/api/organizations', supabaseOrganizations);
-  app.use('/api/notifications', supabaseNotifications);
-  app.use('/api/demo-requests', demoRequests);
-  
-  console.log('✅ Supabase routes loaded successfully');
-} catch (error) {
-  console.error('❌ Error loading routes:', error.message);
-  
-  // Fallback route handler
-  app.use('/api/*', (req, res) => {
-    res.status(503).json({
-      success: false,
-      message: 'Service temporarily unavailable',
-      error: 'Routes loading failed',
-      timestamp: new Date().toISOString()
-    });
+// Simple API endpoints without external route imports
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: '2.0.1-minimal'
   });
-}
+});
+
+app.get('/api/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API is working',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Temporary auth endpoint for testing
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  
+  // Simple hardcoded validation for testing
+  if (email === 'anas@anas.com' && password) {
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { 
+        userId: 'test-user-id',
+        email: email,
+        role: 'org_admin',
+        organizationId: 'test-org-id'
+      },
+      process.env.JWT_SECRET || 'fallback-secret',
+      { expiresIn: '24h' }
+    );
+    
+    res.json({
+      success: true,
+      token,
+      user: {
+        email,
+        role: 'org_admin',
+        organizationId: 'test-org-id'
+      }
+    });
+  } else {
+    res.status(401).json({
+      success: false,
+      message: 'Invalid credentials'
+    });
+  }
+});
+
+console.log('✅ Minimal API loaded successfully');
 
 // Error handling middleware
 app.use((error, req, res, next) => {
