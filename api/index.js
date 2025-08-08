@@ -139,16 +139,39 @@ module.exports = async (req, res) => {
       });
     }
 
-    if (method === 'GET' && pathname.startsWith('/api/organizations')) {
+    if (method === 'GET' && pathname.match(/^\/api\/organizations\/[^\/]+$/)) {
+      // Single organization by ID
+      const orgId = pathname.split('/')[3];
       return jsonResponse(res, 200, {
         success: true,
         data: {
-          id: 'test-org-id',
+          id: orgId,
           name: 'Test Organization',
           plan: 'pro',
-          users: 5
+          users: 5,
+          createdAt: new Date().toISOString(),
+          isActive: true
         },
         message: 'Organization data (test)'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/organizations') {
+      // Organizations list - return array
+      return jsonResponse(res, 200, {
+        success: true,
+        data: [
+          {
+            id: 'test-org-id',
+            name: 'Test Organization',
+            plan: 'pro',
+            users: 5,
+            createdAt: new Date().toISOString(),
+            isActive: true
+          }
+        ],
+        total: 1,
+        message: 'Organizations list (test)'
       });
     }
 
