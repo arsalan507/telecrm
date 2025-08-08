@@ -112,6 +112,33 @@ module.exports = async (req, res) => {
       }
     }
 
+    if (method === 'GET' && pathname.startsWith('/api/organizations/') && pathname.endsWith('/users')) {
+      return jsonResponse(res, 200, {
+        success: true,
+        data: [
+          {
+            id: 'user1',
+            firstName: 'Anas',
+            lastName: 'User', 
+            email: 'anas@anas.com',
+            role: 'org_admin',
+            isActive: true,
+            organizationId: 'test-org-id'
+          },
+          {
+            id: 'user2', 
+            firstName: 'John',
+            lastName: 'Doe',
+            email: 'john@example.com',
+            role: 'agent',
+            isActive: true,
+            organizationId: 'test-org-id'
+          }
+        ],
+        message: 'Organization users (test data)'
+      });
+    }
+
     if (method === 'GET' && pathname.startsWith('/api/organizations')) {
       return jsonResponse(res, 200, {
         success: true,
@@ -122,6 +149,132 @@ module.exports = async (req, res) => {
           users: 5
         },
         message: 'Organization data (test)'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/call-logs') {
+      return jsonResponse(res, 200, {
+        success: true,
+        data: [
+          {
+            id: 'call1',
+            contactName: 'John Smith',
+            phoneNumber: '+1234567890',
+            duration: 120,
+            outcome: 'interested',
+            notes: 'Interested in premium plan',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'call2',
+            contactName: 'Jane Doe', 
+            phoneNumber: '+1987654321',
+            duration: 90,
+            outcome: 'not_interested',
+            notes: 'Not ready to purchase',
+            createdAt: new Date(Date.now() - 86400000).toISOString()
+          }
+        ],
+        total: 2,
+        message: 'Call logs (test data)'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/tickets/stats') {
+      return jsonResponse(res, 200, {
+        success: true,
+        data: {
+          total: 15,
+          open: 8,
+          inProgress: 4, 
+          resolved: 3,
+          priority: {
+            high: 2,
+            medium: 6,
+            low: 7
+          }
+        },
+        message: 'Ticket stats (test data)'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/tickets') {
+      return jsonResponse(res, 200, {
+        success: true,
+        data: [
+          {
+            id: 'ticket1',
+            title: 'Customer inquiry about pricing',
+            description: 'Customer wants to know about enterprise pricing',
+            status: 'open',
+            priority: 'medium',
+            assignedTo: 'Anas User',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'ticket2',
+            title: 'Technical issue with dashboard',
+            description: 'Dashboard not loading properly',
+            status: 'in_progress', 
+            priority: 'high',
+            assignedTo: 'John Doe',
+            createdAt: new Date(Date.now() - 3600000).toISOString()
+          }
+        ],
+        total: 2,
+        message: 'Tickets (test data)'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/notifications/unread') {
+      return jsonResponse(res, 200, {
+        success: true,
+        count: 3,
+        data: [
+          {
+            id: 'notif1',
+            title: 'New ticket assigned',
+            message: 'You have been assigned a new high priority ticket',
+            type: 'assignment',
+            isRead: false,
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'notif2',
+            title: 'Call log updated',
+            message: 'Call outcome has been updated for John Smith',
+            type: 'update',
+            isRead: false,
+            createdAt: new Date(Date.now() - 1800000).toISOString()
+          }
+        ],
+        message: 'Unread notifications (test data)'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/notifications') {
+      return jsonResponse(res, 200, {
+        success: true,
+        data: [
+          {
+            id: 'notif1',
+            title: 'New ticket assigned',
+            message: 'You have been assigned a new high priority ticket',
+            type: 'assignment',
+            isRead: false,
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'notif2', 
+            title: 'Call log updated',
+            message: 'Call outcome has been updated for John Smith',
+            type: 'update',
+            isRead: false,
+            createdAt: new Date(Date.now() - 1800000).toISOString()
+          }
+        ],
+        total: 2,
+        message: 'All notifications (test data)'
       });
     }
 
