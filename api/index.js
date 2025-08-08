@@ -206,7 +206,7 @@ module.exports = async (req, res) => {
     if (method === 'GET' && pathname === '/api/tickets/stats') {
       return jsonResponse(res, 200, {
         success: true,
-        data: {
+        stats: {
           total: 15,
           open: 8,
           inProgress: 4, 
@@ -217,7 +217,39 @@ module.exports = async (req, res) => {
             low: 7
           }
         },
-        message: 'Ticket stats (test data)'
+        recentTickets: [
+          {
+            id: 'ticket1',
+            title: 'Customer inquiry about pricing',
+            description: 'Customer wants to know about enterprise pricing',
+            status: 'open',
+            priority: 'medium',
+            assignedTo: 'Anas User',
+            customerName: 'John Smith',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'ticket2',
+            title: 'Technical issue with dashboard',
+            description: 'Dashboard not loading properly',
+            status: 'in_progress', 
+            priority: 'high',
+            assignedTo: 'John Doe',
+            customerName: 'Jane Doe',
+            createdAt: new Date(Date.now() - 3600000).toISOString()
+          },
+          {
+            id: 'ticket3',
+            title: 'Feature request - Export data',
+            description: 'Customer wants to export call logs',
+            status: 'open', 
+            priority: 'low',
+            assignedTo: 'Anas User',
+            customerName: 'Mike Johnson',
+            createdAt: new Date(Date.now() - 7200000).toISOString()
+          }
+        ],
+        message: 'Ticket stats with recent tickets (test data)'
       });
     }
 
@@ -232,6 +264,8 @@ module.exports = async (req, res) => {
             status: 'open',
             priority: 'medium',
             assignedTo: 'Anas User',
+            customerName: 'John Smith',
+            isOverdue: false,
             createdAt: new Date().toISOString()
           },
           {
@@ -241,10 +275,34 @@ module.exports = async (req, res) => {
             status: 'in_progress', 
             priority: 'high',
             assignedTo: 'John Doe',
+            customerName: 'Jane Doe',
+            isOverdue: true,
             createdAt: new Date(Date.now() - 3600000).toISOString()
+          },
+          {
+            id: 'ticket3',
+            title: 'Feature request - Export data',
+            description: 'Customer wants to export call logs',
+            status: 'resolved', 
+            priority: 'low',
+            assignedTo: 'Anas User',
+            customerName: 'Mike Johnson',
+            isOverdue: false,
+            createdAt: new Date(Date.now() - 7200000).toISOString()
+          },
+          {
+            id: 'ticket4',
+            title: 'Account setup assistance',
+            description: 'New customer needs help with account setup',
+            status: 'open', 
+            priority: 'medium',
+            assignedTo: 'John Doe',
+            customerName: 'Sarah Wilson',
+            isOverdue: false,
+            createdAt: new Date(Date.now() - 86400000).toISOString()
           }
         ],
-        total: 2,
+        total: 4,
         message: 'Tickets (test data)'
       });
     }
