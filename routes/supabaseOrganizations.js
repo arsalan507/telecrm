@@ -6,6 +6,16 @@ const SupabaseOrganization = require('../models/SupabaseOrganization');
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../config/supabase');
 
+// Test endpoint to verify Supabase routes are being used (before middleware)
+router.get('/test-supabase-routes', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Supabase organization routes are active',
+    timestamp: new Date().toISOString(),
+    routeFile: 'supabaseOrganizations.js'
+  });
+});
+
 // Explicit CORS middleware for organization routes
 router.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -450,15 +460,7 @@ router.get('/:organizationId/subscription',
   }
 );
 
-// Test endpoint to verify Supabase routes are being used
-router.get('/test-supabase-routes', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Supabase organization routes are active',
-    timestamp: new Date().toISOString(),
-    routeFile: 'supabaseOrganizations.js'
-  });
-});
+// Duplicate test endpoint removed - using the one before middleware
 
 // Debug endpoint to test authentication without organization validation
 router.get('/debug/auth-test', authenticate, async (req, res) => {
