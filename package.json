@@ -24,19 +24,8 @@
   "author": "CallTracker Pro Team",
   "license": "MIT",
   "dependencies": {
-    "@supabase/supabase-js": "^2.53.0",
-    "axios": "^1.11.0",
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
-    "express": "^4.21.2",
-    "express-rate-limit": "^6.7.0",
-    "express-validator": "^7.2.1",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.15.2",
-    "nodemailer": "^6.9.1",
-    "pg": "^8.16.3",
-    "body-parser": "^1.20.2"
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

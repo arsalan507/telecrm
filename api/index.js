@@ -1,119 +1,144 @@
-// api/index.js - Vercel serverless function entry point
+// api/index.js - Pure Node.js serverless function (no Express)
 require('dotenv').config();
-const express = require('express');
+const url = require('url');
+const jwt = require('jsonwebtoken');
 
-// Create a minimal Express app for serverless
-const app = express();
+// CORS headers
+const setCORSHeaders = (res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-organization-id');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '0');
+};
 
-// Add CORS headers
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-organization-id, Accept, Origin, X-Requested-With, Cache-Control');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '0');
-  next();
-});
+// JSON response helper
+const jsonResponse = (res, statusCode, data) => {
+  setCORSHeaders(res);
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+};
 
-// Handle preflight requests
-app.options('*', (req, res) => {
-  res.status(204).end();
-});
-
-app.use(express.json());
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
-// Basic test endpoint
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'CallTracker Pro Backend API',
-    version: '2.0.1-serverless',
-    timestamp: new Date().toISOString(),
-    status: 'running'
-  });
-});
-
-// Simple API endpoints without external route imports
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    version: '2.0.1-minimal'
-  });
-});
-
-app.get('/api/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'API is working',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Temporary auth endpoint for testing
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  
-  // Simple hardcoded validation for testing
-  if (email === 'anas@anas.com' && password) {
-    const jwt = require('jsonwebtoken');
-    const token = jwt.sign(
-      { 
-        userId: 'test-user-id',
-        email: email,
-        role: 'org_admin',
-        organizationId: 'test-org-id'
-      },
-      process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: '24h' }
-    );
-    
-    res.json({
-      success: true,
-      token,
-      user: {
-        email,
-        role: 'org_admin',
-        organizationId: 'test-org-id'
+// Parse JSON body
+const parseBody = (req) => {
+  return new Promise((resolve) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (error) {
+        resolve({});
       }
     });
-  } else {
-    res.status(401).json({
+  });
+};
+
+// Main handler function
+module.exports = async (req, res) => {
+  try {
+    const parsedUrl = url.parse(req.url, true);
+    const pathname = parsedUrl.pathname;
+    const method = req.method;
+
+    console.log(`${method} ${pathname}`);
+
+    // Handle preflight requests
+    if (method === 'OPTIONS') {
+      setCORSHeaders(res);
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    // Routes
+    if (method === 'GET' && pathname === '/') {
+      return jsonResponse(res, 200, {
+        message: 'CallTracker Pro Backend API',
+        version: '2.0.1-pure-nodejs',
+        timestamp: new Date().toISOString(),
+        status: 'running'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/health') {
+      return jsonResponse(res, 200, {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        version: '2.0.1-pure-nodejs'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/test') {
+      return jsonResponse(res, 200, {
+        success: true,
+        message: 'Pure Node.js API is working',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (method === 'POST' && pathname === '/api/auth/login') {
+      const body = await parseBody(req);
+      const { email, password } = body;
+
+      if (email === 'anas@anas.com' && password) {
+        const token = jwt.sign(
+          {
+            userId: 'test-user-id',
+            email: email,
+            role: 'org_admin',
+            organizationId: 'test-org-id'
+          },
+          process.env.JWT_SECRET || 'fallback-secret',
+          { expiresIn: '24h' }
+        );
+
+        return jsonResponse(res, 200, {
+          success: true,
+          token,
+          user: {
+            email,
+            role: 'org_admin',
+            organizationId: 'test-org-id'
+          }
+        });
+      } else {
+        return jsonResponse(res, 401, {
+          success: false,
+          message: 'Invalid credentials'
+        });
+      }
+    }
+
+    if (method === 'GET' && pathname.startsWith('/api/organizations')) {
+      return jsonResponse(res, 200, {
+        success: true,
+        data: {
+          id: 'test-org-id',
+          name: 'Test Organization',
+          plan: 'pro',
+          users: 5
+        },
+        message: 'Organization data (test)'
+      });
+    }
+
+    // 404 for unmatched routes
+    return jsonResponse(res, 404, {
       success: false,
-      message: 'Invalid credentials'
+      message: 'Endpoint not found',
+      path: pathname,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Server error:', error);
+    return jsonResponse(res, 500, {
+      success: false,
+      message: 'Internal server error',
+      timestamp: new Date().toISOString()
     });
   }
-});
-
-console.log('✅ Minimal API loaded successfully');
-
-// Error handling middleware
-app.use((error, req, res, next) => {
-  console.error('❌ Unhandled error:', error);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Endpoint not found',
-    path: req.originalUrl,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Export for Vercel
-module.exports = app;
+};
