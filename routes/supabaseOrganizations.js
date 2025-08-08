@@ -52,22 +52,23 @@ const authenticate = async (req, res, next) => {
         user.isActive = user.is_active;
       }
     } catch (supabaseError) {
-      console.log('ℹ️ User not found in Supabase, trying MongoDB...');
+      console.log('ℹ️ User not found in Supabase:', supabaseError.message);
+      console.log('ℹ️ Trying MongoDB...');
     }
     
-    // If not found in Supabase, try MongoDB for super_admin users
-    if (!user && decoded.role === 'super_admin') {
+    // If not found in Supabase, try MongoDB as fallback
+    if (!user) {
       try {
         const User = require('../models/User');
         user = await User.findById(decoded.userId).select('-password');
         if (user) {
-          console.log('✅ Found super admin in MongoDB:', user.email);
-          // Convert MongoDB user to consistent format
+          console.log('✅ Found user in MongoDB:', user.email, 'role:', user.role);
+          // Convert MongoDB user to consistent format - MongoDB already has correct field names
           user.organizationId = user.organizationId;
           user.isActive = user.isActive;
         }
       } catch (mongoError) {
-        console.log('ℹ️ User not found in MongoDB either');
+        console.log('ℹ️ User not found in MongoDB either:', mongoError.message);
       }
     }
     
@@ -132,24 +133,27 @@ const validateOrganizationAccess = (req, res, next) => {
   console.log('🔍 Validating organization access:', {
     requestedOrgId,
     userOrgId: req.organizationId,
-    userRole: req.userRole
+    userRole: req.userRole,
+    userEmail: req.user?.email
   });
   
   // Super admin can access any organization
   if (req.userRole === 'super_admin') {
+    console.log('✅ Super admin access granted');
     req.targetOrganizationId = requestedOrgId;
     return next();
   }
   
   // Regular users can only access their own organization
   if (req.organizationId !== requestedOrgId) {
-    console.log('❌ Organization access denied');
+    console.log('❌ Organization access denied - user org:', req.organizationId, 'requested:', requestedOrgId);
     return res.status(403).json({
       success: false,
       message: 'Access denied. Cannot access different organization.'
     });
   }
   
+  console.log('✅ Organization access granted for org_admin');
   req.targetOrganizationId = requestedOrgId;
   next();
 };
@@ -445,5 +449,29 @@ router.get('/:organizationId/subscription',
     }
   }
 );
+
+// Debug endpoint to test authentication without organization validation
+router.get('/debug/auth-test', authenticate, async (req, res) => {
+  try {
+    console.log('🔍 Debug endpoint hit - user:', req.user?.email);
+    res.json({
+      success: true,
+      message: 'Authentication working',
+      user: {
+        id: req.user?.id || req.user?._id,
+        email: req.user?.email,
+        role: req.user?.role,
+        organizationId: req.organizationId
+      }
+    });
+  } catch (error) {
+    console.error('❌ Debug auth test error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Debug test failed',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;
