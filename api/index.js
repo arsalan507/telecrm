@@ -72,6 +72,16 @@ const calculateDueDate = (slaHours = 24) => {
   return new Date(Date.now() + slaHours * 60 * 60 * 1000).toISOString();
 };
 
+// Check if time is within business hours (9 AM - 6 PM EST)
+const isBusinessHours = (timestamp) => {
+  const date = new Date(timestamp);
+  const hour = date.getHours();
+  const day = date.getDay(); // 0 = Sunday, 6 = Saturday
+  
+  // Monday to Friday, 9 AM to 6 PM
+  return day >= 1 && day <= 5 && hour >= 9 && hour < 18;
+};
+
 // CallTrackerPro ticket database (matching mobile app schema)
 const ticketDatabase = {
   ticket1: {
@@ -610,8 +620,30 @@ const createCallLogWithTicket = async (data) => {
       ticketId: null
     };
     
-    // Store call log
-    callLogDatabase[callLogId] = callLog;
+    // Store call log in enhanced database
+    enhancedCallLogDatabase[callLogId] = {
+      ...callLog,
+      callId: `CALL-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+      displayName: callLog.contactName || callLog.phoneNumber,
+      startTime: now,
+      endTime: data.duration > 0 ? new Date(new Date(now).getTime() + data.duration * 1000).toISOString() : null,
+      callOutcome: data.status === 'answered' ? 'connected' : data.status,
+      callNotes: data.callNotes || '',
+      followUpRequired: data.followUpRequired || false,
+      followUpDate: data.followUpDate || null,
+      tags: data.tags || [],
+      isKnownContact: !!(data.contactName && data.contactName !== 'Unknown Contact'),
+      contactSource: data.contactName ? 'crm' : null,
+      location: data.location || { city: '', state: '', country: 'USA' },
+      deviceInfo: data.deviceInfo || { platform: 'android', appVersion: '1.0.0' },
+      userName: 'Agent User', // In production, get from user database
+      responseTime: data.responseTime || 0,
+      isBusinessHours: isBusinessHours(now),
+      callCost: 0,
+      customerSatisfaction: null,
+      updatedAt: now,
+      isDeleted: false
+    };
     
     let ticket = null;
     
@@ -720,7 +752,8 @@ const createCallLogWithTicket = async (data) => {
       ticketDatabase[ticketId] = ticket;
       
       // Link ticket to call log
-      callLogDatabase[callLogId].ticketId = ticketId;
+      enhancedCallLogDatabase[callLogId].ticketId = ticketId;
+      enhancedCallLogDatabase[callLogId].ticketCreated = true;
       
       // Send real-time notifications (mock implementation)
       console.log('🔔 SSE Event: TICKET_CREATED', {
@@ -755,22 +788,205 @@ const createCallLogWithTicket = async (data) => {
   }
 };
 
-// Get call logs with filtering
+// Enhanced call logs database with comprehensive CallTrackerPro format
+const enhancedCallLogDatabase = {
+  call_log_001: {
+    _id: 'call_log_001',
+    callId: 'CALL-2024-08-001',
+    
+    // Basic Call Information
+    phoneNumber: '+1 (555) 123-4567',
+    contactName: 'John Doe',
+    company: 'Acme Corp',
+    displayName: 'John Doe',
+    
+    // Call Details
+    callType: 'incoming',
+    callDate: new Date(Date.now() - 3600000).toISOString(),
+    startTime: new Date(Date.now() - 3600000).toISOString(),
+    endTime: new Date(Date.now() - 3600000 + 323000).toISOString(),
+    duration: 323,
+    status: 'answered',
+    
+    // Call Quality & Recording
+    callQuality: 4,
+    callRecordingUrl: 'https://storage.example.com/recordings/call_001.mp3',
+    recordingDuration: 320,
+    recordingSize: 2048000,
+    
+    // Contact Integration
+    contactId: 'contact_001',
+    isKnownContact: true,
+    contactSource: 'crm',
+    
+    // Geographic & Device Info
+    location: {
+      city: 'New York',
+      state: 'NY',
+      country: 'USA',
+      timezone: 'America/New_York'
+    },
+    deviceInfo: {
+      platform: 'android',
+      appVersion: '1.0.0',
+      deviceModel: 'Samsung Galaxy S21'
+    },
+    
+    // Agent & Organization Context
+    userId: 'agent_456',
+    userName: 'Sarah Wilson',
+    organizationId: 'org_12345',
+    teamId: 'sales_team_001',
+    
+    // Call Outcome & Follow-up
+    callOutcome: 'connected',
+    callNotes: 'Customer interested in enterprise plan. Scheduled follow-up call.',
+    followUpRequired: true,
+    followUpDate: new Date(Date.now() + 86400000 * 2).toISOString(),
+    tags: ['hot_lead', 'enterprise', 'follow_up'],
+    
+    // Integration with Tickets
+    ticketId: 'ticket1',
+    ticketCreated: true,
+    autoTicketCreation: true,
+    
+    // Analytics & Performance
+    responseTime: 3,
+    isBusinessHours: true,
+    callCost: 0.05,
+    customerSatisfaction: 5,
+    
+    // Audit Trail
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 + 323000).toISOString(),
+    createdBy: 'agent_456',
+    isActive: true,
+    isDeleted: false
+  },
+  
+  call_log_002: {
+    _id: 'call_log_002',
+    callId: 'CALL-2024-08-002',
+    phoneNumber: '+1 (555) 987-6543',
+    contactName: 'Jane Smith',
+    company: 'Tech Solutions Inc',
+    displayName: 'Jane Smith',
+    callType: 'outgoing',
+    callDate: new Date(Date.now() - 7200000).toISOString(),
+    startTime: new Date(Date.now() - 7200000).toISOString(),
+    endTime: new Date(Date.now() - 7200000 + 180000).toISOString(),
+    duration: 180,
+    status: 'answered',
+    callQuality: 5,
+    callRecordingUrl: null,
+    contactId: 'contact_002',
+    isKnownContact: true,
+    contactSource: 'local',
+    location: {
+      city: 'San Francisco',
+      state: 'CA',
+      country: 'USA',
+      timezone: 'America/Los_Angeles'
+    },
+    userId: 'agent_789',
+    userName: 'John Smith',
+    organizationId: 'org_12345',
+    teamId: 'support_team_001',
+    callOutcome: 'connected',
+    callNotes: 'Customer support inquiry resolved successfully.',
+    followUpRequired: false,
+    tags: ['support', 'resolved'],
+    ticketId: null,
+    ticketCreated: false,
+    autoTicketCreation: false,
+    responseTime: 2,
+    isBusinessHours: true,
+    callCost: 0.03,
+    customerSatisfaction: 4,
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+    updatedAt: new Date(Date.now() - 7200000 + 180000).toISOString(),
+    createdBy: 'agent_789',
+    isActive: true,
+    isDeleted: false
+  },
+  
+  call_log_003: {
+    _id: 'call_log_003',
+    callId: 'CALL-2024-08-003',
+    phoneNumber: '+1 (555) 456-7890',
+    contactName: 'Unknown Contact',
+    company: '',
+    displayName: '+1 (555) 456-7890',
+    callType: 'missed',
+    callDate: new Date(Date.now() - 1800000).toISOString(),
+    startTime: new Date(Date.now() - 1800000).toISOString(),
+    endTime: null,
+    duration: 0,
+    status: 'missed',
+    callQuality: 0,
+    callRecordingUrl: null,
+    contactId: null,
+    isKnownContact: false,
+    contactSource: null,
+    location: {
+      city: 'Unknown',
+      state: 'Unknown',
+      country: 'USA',
+      timezone: 'America/New_York'
+    },
+    userId: 'agent_456',
+    userName: 'Sarah Wilson',
+    organizationId: 'org_12345',
+    teamId: 'sales_team_001',
+    callOutcome: 'no_answer',
+    callNotes: 'Missed call - will try to call back',
+    followUpRequired: true,
+    followUpDate: new Date(Date.now() + 3600000).toISOString(),
+    tags: ['missed', 'callback_required'],
+    ticketId: null,
+    ticketCreated: false,
+    autoTicketCreation: false,
+    responseTime: 0,
+    isBusinessHours: true,
+    callCost: 0,
+    customerSatisfaction: null,
+    createdAt: new Date(Date.now() - 1800000).toISOString(),
+    updatedAt: new Date(Date.now() - 1800000).toISOString(),
+    createdBy: 'agent_456',
+    isActive: true,
+    isDeleted: false
+  }
+};
+
+// Enhanced call logs retrieval with advanced filtering
 const getCallLogs = (query = {}) => {
   const {
-    limit = 20,
+    limit = 50,
     offset = 0,
+    page = 1,
     organizationId,
     teamId,
     userId,
     callType,
+    status,
     dateFrom,
-    dateTo
+    dateTo,
+    phoneNumber,
+    contactName,
+    hasRecording,
+    hasTicket,
+    minDuration,
+    maxDuration,
+    businessHoursOnly,
+    tags,
+    search,
+    sortBy = 'callDate',
+    sortOrder = 'desc'
   } = query;
   
-  let callLogs = Object.values(callLogDatabase);
+  let callLogs = Object.values(enhancedCallLogDatabase);
   
-  // Apply filters (CallTrackerPro app filters)
+  // Apply comprehensive filters
   if (organizationId) {
     callLogs = callLogs.filter(c => c.organizationId === organizationId);
   }
@@ -783,25 +999,360 @@ const getCallLogs = (query = {}) => {
   if (callType) {
     callLogs = callLogs.filter(c => c.callType === callType);
   }
+  if (status) {
+    callLogs = callLogs.filter(c => c.status === status);
+  }
   if (dateFrom) {
     const fromDate = new Date(dateFrom);
-    callLogs = callLogs.filter(c => new Date(c.createdAt) >= fromDate);
+    callLogs = callLogs.filter(c => new Date(c.callDate) >= fromDate);
   }
   if (dateTo) {
     const toDate = new Date(dateTo);
-    callLogs = callLogs.filter(c => new Date(c.createdAt) <= toDate);
+    callLogs = callLogs.filter(c => new Date(c.callDate) <= toDate);
+  }
+  if (phoneNumber) {
+    callLogs = callLogs.filter(c => c.phoneNumber.includes(phoneNumber));
+  }
+  if (contactName) {
+    callLogs = callLogs.filter(c => 
+      c.contactName?.toLowerCase().includes(contactName.toLowerCase())
+    );
+  }
+  if (hasRecording === 'true') {
+    callLogs = callLogs.filter(c => c.callRecordingUrl);
+  } else if (hasRecording === 'false') {
+    callLogs = callLogs.filter(c => !c.callRecordingUrl);
+  }
+  if (hasTicket === 'true') {
+    callLogs = callLogs.filter(c => c.ticketCreated);
+  } else if (hasTicket === 'false') {
+    callLogs = callLogs.filter(c => !c.ticketCreated);
+  }
+  if (minDuration) {
+    callLogs = callLogs.filter(c => c.duration >= parseInt(minDuration));
+  }
+  if (maxDuration) {
+    callLogs = callLogs.filter(c => c.duration <= parseInt(maxDuration));
+  }
+  if (businessHoursOnly === 'true') {
+    callLogs = callLogs.filter(c => c.isBusinessHours);
+  }
+  if (tags) {
+    const tagArray = tags.split(',');
+    callLogs = callLogs.filter(c => 
+      tagArray.some(tag => c.tags?.includes(tag.trim()))
+    );
+  }
+  if (search) {
+    const searchLower = search.toLowerCase();
+    callLogs = callLogs.filter(c => 
+      c.contactName?.toLowerCase().includes(searchLower) ||
+      c.company?.toLowerCase().includes(searchLower) ||
+      c.phoneNumber.includes(searchLower) ||
+      c.callNotes?.toLowerCase().includes(searchLower) ||
+      c.callId?.toLowerCase().includes(searchLower)
+    );
   }
   
-  // Sort by most recent first
-  callLogs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // Sorting
+  callLogs.sort((a, b) => {
+    let aValue = a[sortBy];
+    let bValue = b[sortBy];
+    
+    if (sortBy === 'callDate' || sortBy === 'createdAt' || sortBy === 'updatedAt') {
+      aValue = new Date(aValue);
+      bValue = new Date(bValue);
+    }
+    
+    if (sortOrder === 'desc') {
+      return bValue > aValue ? 1 : -1;
+    } else {
+      return aValue > bValue ? 1 : -1;
+    }
+  });
   
-  // Pagination
-  const total = callLogs.length;
-  const paginatedLogs = callLogs.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+  // Calculate aggregations
+  const totalCalls = callLogs.length;
+  const answeredCalls = callLogs.filter(c => c.status === 'answered').length;
+  const missedCalls = callLogs.filter(c => c.status === 'missed').length;
+  const totalDuration = callLogs.reduce((sum, c) => sum + c.duration, 0);
+  const averageDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
+  
+  // Calculate pagination
+  const currentPage = parseInt(page);
+  const pageSize = parseInt(limit);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedLogs = callLogs.slice(startIndex, endIndex);
+  
+  const totalPages = Math.ceil(totalCalls / pageSize);
+  
+  // Get available filters for UI
+  const availableAgents = [...new Set(callLogs.map(c => ({
+    userId: c.userId,
+    name: c.userName,
+    callCount: callLogs.filter(cl => cl.userId === c.userId).length
+  })))];
+  
+  const availableTeams = [...new Set(callLogs.map(c => ({
+    teamId: c.teamId,
+    name: c.teamId.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+    callCount: callLogs.filter(cl => cl.teamId === c.teamId).length
+  })))];
   
   return {
     data: paginatedLogs,
-    total: total
+    pagination: {
+      currentPage,
+      totalPages,
+      totalRecords: totalCalls,
+      hasNext: currentPage < totalPages,
+      hasPrevious: currentPage > 1,
+      pageSize
+    },
+    aggregations: {
+      totalCalls,
+      answeredCalls,
+      missedCalls,
+      totalDuration,
+      averageDuration,
+      callsByType: {
+        incoming: callLogs.filter(c => c.callType === 'incoming').length,
+        outgoing: callLogs.filter(c => c.callType === 'outgoing').length,
+        missed: callLogs.filter(c => c.callType === 'missed').length
+      },
+      callsByStatus: {
+        answered: answeredCalls,
+        missed: missedCalls,
+        busy: callLogs.filter(c => c.status === 'busy').length,
+        failed: callLogs.filter(c => c.status === 'failed').length
+      }
+    },
+    filters: {
+      applied: {
+        organizationId,
+        teamId,
+        userId,
+        callType,
+        status,
+        dateFrom,
+        dateTo
+      },
+      available: {
+        agents: availableAgents,
+        teams: availableTeams
+      }
+    }
+  };
+};
+
+// Get call history for specific phone number
+const getCallHistory = (phoneNumber, query = {}) => {
+  const { organizationId, limit = 10 } = query;
+  
+  let callHistory = Object.values(enhancedCallLogDatabase)
+    .filter(c => c.phoneNumber === phoneNumber);
+    
+  if (organizationId) {
+    callHistory = callHistory.filter(c => c.organizationId === organizationId);
+  }
+  
+  // Sort by most recent first
+  callHistory.sort((a, b) => new Date(b.callDate) - new Date(a.callDate));
+  
+  // Limit results
+  callHistory = callHistory.slice(0, parseInt(limit));
+  
+  // Get contact info from most recent call
+  const contactInfo = callHistory.length > 0 ? {
+    name: callHistory[0].contactName,
+    company: callHistory[0].company,
+    isKnownContact: callHistory[0].isKnownContact
+  } : null;
+  
+  // Calculate stats
+  const totalCalls = callHistory.length;
+  const totalDuration = callHistory.reduce((sum, c) => sum + c.duration, 0);
+  const averageDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
+  const conversionRate = totalCalls > 0 ? 
+    (callHistory.filter(c => c.ticketCreated).length / totalCalls * 100).toFixed(1) : 0;
+  
+  return {
+    phoneNumber,
+    contactInfo,
+    callHistory: callHistory.map(call => ({
+      _id: call._id,
+      callDate: call.callDate,
+      callType: call.callType,
+      duration: call.duration,
+      status: call.status,
+      agentName: call.userName,
+      callNotes: call.callNotes,
+      ticketCreated: call.ticketCreated,
+      ticketId: call.ticketId
+    })),
+    stats: {
+      totalCalls,
+      lastCallDate: callHistory.length > 0 ? callHistory[0].callDate : null,
+      averageDuration,
+      totalDuration,
+      conversionRate: parseFloat(conversionRate)
+    }
+  };
+};
+
+// Get call analytics and statistics
+const getCallAnalytics = (query = {}) => {
+  const {
+    organizationId,
+    teamId,
+    userId,
+    dateFrom,
+    dateTo,
+    granularity = 'day'
+  } = query;
+  
+  let callLogs = Object.values(enhancedCallLogDatabase);
+  
+  // Apply filters
+  if (organizationId) {
+    callLogs = callLogs.filter(c => c.organizationId === organizationId);
+  }
+  if (teamId) {
+    callLogs = callLogs.filter(c => c.teamId === teamId);
+  }
+  if (userId) {
+    callLogs = callLogs.filter(c => c.userId === userId);
+  }
+  if (dateFrom) {
+    const fromDate = new Date(dateFrom);
+    callLogs = callLogs.filter(c => new Date(c.callDate) >= fromDate);
+  }
+  if (dateTo) {
+    const toDate = new Date(dateTo);
+    callLogs = callLogs.filter(c => new Date(c.callDate) <= toDate);
+  }
+  
+  // Calculate summary statistics
+  const totalCalls = callLogs.length;
+  const answeredCalls = callLogs.filter(c => c.status === 'answered').length;
+  const missedCalls = callLogs.filter(c => c.status === 'missed').length;
+  const totalCallTime = callLogs.reduce((sum, c) => sum + c.duration, 0);
+  const averageDuration = totalCalls > 0 ? Math.round(totalCallTime / totalCalls) : 0;
+  const averageResponseTime = callLogs
+    .filter(c => c.responseTime > 0)
+    .reduce((sum, c, _, arr) => sum + c.responseTime / arr.length, 0);
+  const callConversionRate = totalCalls > 0 ?
+    (callLogs.filter(c => c.ticketCreated).length / totalCalls * 100).toFixed(1) : 0;
+  
+  // Calculate busy hours
+  const hourlyStats = {};
+  callLogs.forEach(call => {
+    const hour = new Date(call.callDate).getHours();
+    hourlyStats[hour] = (hourlyStats[hour] || 0) + 1;
+  });
+  
+  const busyHours = Object.entries(hourlyStats)
+    .map(([hour, count]) => ({ hour: parseInt(hour), callCount: count }))
+    .sort((a, b) => b.callCount - a.callCount)
+    .slice(0, 5);
+  
+  // Agent performance
+  const agentStats = {};
+  callLogs.forEach(call => {
+    if (!agentStats[call.userId]) {
+      agentStats[call.userId] = {
+        userId: call.userId,
+        name: call.userName,
+        totalCalls: 0,
+        answeredCalls: 0,
+        totalDuration: 0,
+        responseTimeSum: 0,
+        responseTimeCount: 0,
+        ticketsCreated: 0
+      };
+    }
+    
+    const agent = agentStats[call.userId];
+    agent.totalCalls++;
+    if (call.status === 'answered') agent.answeredCalls++;
+    agent.totalDuration += call.duration;
+    if (call.responseTime > 0) {
+      agent.responseTimeSum += call.responseTime;
+      agent.responseTimeCount++;
+    }
+    if (call.ticketCreated) agent.ticketsCreated++;
+  });
+  
+  const agentPerformance = Object.values(agentStats).map(agent => ({
+    ...agent,
+    averageDuration: agent.totalCalls > 0 ? Math.round(agent.totalDuration / agent.totalCalls) : 0,
+    responseTime: agent.responseTimeCount > 0 ? 
+      (agent.responseTimeSum / agent.responseTimeCount).toFixed(1) : 0,
+    conversionRate: agent.totalCalls > 0 ? 
+      (agent.ticketsCreated / agent.totalCalls * 100).toFixed(1) : 0
+  }));
+  
+  // Call patterns by hour, day
+  const callsByHour = {};
+  const callsByDay = {};
+  
+  callLogs.forEach(call => {
+    const date = new Date(call.callDate);
+    const hour = date.getHours();
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+    
+    callsByHour[hour] = (callsByHour[hour] || 0) + 1;
+    callsByDay[dayName] = (callsByDay[dayName] || 0) + 1;
+  });
+  
+  // Calculate percentages for call types
+  const callsByTypePercent = {
+    incoming: totalCalls > 0 ? 
+      (callLogs.filter(c => c.callType === 'incoming').length / totalCalls * 100).toFixed(1) : 0,
+    outgoing: totalCalls > 0 ? 
+      (callLogs.filter(c => c.callType === 'outgoing').length / totalCalls * 100).toFixed(1) : 0,
+    missed: totalCalls > 0 ? 
+      (callLogs.filter(c => c.callType === 'missed').length / totalCalls * 100).toFixed(1) : 0
+  };
+  
+  return {
+    summary: {
+      totalCalls,
+      answeredCalls,
+      missedCalls,
+      averageDuration,
+      totalCallTime,
+      averageResponseTime: parseFloat(averageResponseTime.toFixed(1)),
+      callConversionRate: parseFloat(callConversionRate),
+      busyHours
+    },
+    trends: {
+      callVolumeTrend: [
+        { date: new Date(Date.now() - 86400000 * 6).toISOString().split('T')[0], calls: 142 },
+        { date: new Date(Date.now() - 86400000 * 5).toISOString().split('T')[0], calls: 156 },
+        { date: new Date(Date.now() - 86400000 * 4).toISOString().split('T')[0], calls: 134 },
+        { date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], calls: 178 },
+        { date: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0], calls: 165 },
+        { date: new Date(Date.now() - 86400000 * 1).toISOString().split('T')[0], calls: 189 },
+        { date: new Date().toISOString().split('T')[0], calls: totalCalls }
+      ],
+      performanceTrend: [
+        { date: new Date(Date.now() - 86400000 * 6).toISOString().split('T')[0], answerRate: 76.8 },
+        { date: new Date(Date.now() - 86400000 * 5).toISOString().split('T')[0], answerRate: 78.5 },
+        { date: new Date(Date.now() - 86400000 * 4).toISOString().split('T')[0], answerRate: 82.1 },
+        { date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], answerRate: 79.3 },
+        { date: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0], answerRate: 84.2 },
+        { date: new Date(Date.now() - 86400000 * 1).toISOString().split('T')[0], answerRate: 81.7 },
+        { date: new Date().toISOString().split('T')[0], answerRate: totalCalls > 0 ? (answeredCalls / totalCalls * 100).toFixed(1) : 0 }
+      ]
+    },
+    agentPerformance,
+    callPatterns: {
+      byHour: callsByHour,
+      byDay: callsByDay,
+      byType: callsByTypePercent
+    }
   };
 };
 
@@ -1148,17 +1699,86 @@ module.exports = async (req, res) => {
       return jsonResponse(res, 201, callLogResult);
     }
 
-    // Get call logs
+    // Get call logs with enhanced filtering
     if (method === 'GET' && pathname === '/api/call-logs') {
       const query = parsedUrl.query;
-      const callLogs = getCallLogs(query);
+      const result = getCallLogs(query);
       
       return jsonResponse(res, 200, {
         success: true,
-        data: callLogs.data,
-        total: callLogs.total,
+        data: {
+          callLogs: result.data,
+          pagination: result.pagination,
+          aggregations: result.aggregations,
+          filters: result.filters
+        },
         message: 'Call logs retrieved successfully'
       });
+    }
+
+    // Get call history for specific phone number
+    if (method === 'GET' && pathname.match(/^\/api\/call-logs\/history\/(.+)$/)) {
+      const phoneNumber = decodeURIComponent(pathname.split('/')[4]);
+      const query = parsedUrl.query;
+      const history = getCallHistory(phoneNumber, query);
+      
+      return jsonResponse(res, 200, {
+        success: true,
+        data: history
+      });
+    }
+
+    // Get call analytics and statistics
+    if (method === 'GET' && pathname === '/api/call-logs/analytics/stats') {
+      const query = parsedUrl.query;
+      const analytics = getCallAnalytics(query);
+      
+      return jsonResponse(res, 200, {
+        success: true,
+        data: analytics
+      });
+    }
+
+    // Real-time call logs stream via SSE
+    if (method === 'GET' && pathname === '/api/call-logs/stream') {
+      const query = parsedUrl.query;
+      const { organizationId, teamId, userId } = query;
+      
+      // Set up SSE headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Authorization'
+      });
+      
+      // Send initial connection message
+      res.write('data: {"type":"connected","message":"Call logs SSE connected","organizationId":"' + organizationId + '"}\n\n');
+      
+      // Send sample call log events (in production, these would be real events)
+      setTimeout(() => {
+        res.write('event: CALL_LOG_CREATED\n');
+        res.write('data: {"type":"CALL_LOG_CREATED","timestamp":"' + new Date().toISOString() + '","data":{"callLog":{"_id":"new_call_001","phoneNumber":"+1555123456","callType":"incoming","status":"answered","organizationId":"' + organizationId + '"}}}\n\n');
+      }, 5000);
+      
+      setTimeout(() => {
+        res.write('event: CALL_ANALYTICS_UPDATED\n');
+        res.write('data: {"type":"CALL_ANALYTICS_UPDATED","timestamp":"' + new Date().toISOString() + '","data":{"organizationId":"' + organizationId + '","stats":{"todaysCalls":45,"answeredToday":38,"missedToday":7}}}\n\n');
+      }, 10000);
+      
+      // Keep connection alive with heartbeat
+      const heartbeat = setInterval(() => {
+        res.write('data: {"type":"heartbeat","timestamp":"' + new Date().toISOString() + '"}\n\n');
+      }, 30000);
+      
+      // Clean up on client disconnect
+      req.on('close', () => {
+        clearInterval(heartbeat);
+        console.log('Call logs SSE client disconnected');
+      });
+      
+      return; // Don't call jsonResponse for SSE
     }
 
     // Server-Sent Events for real-time ticket updates
