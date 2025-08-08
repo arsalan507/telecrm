@@ -58,88 +58,149 @@ const generateId = (prefix = 'ticket') => {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
 
-// Mock ticket database
+// Generate ticket ID in CallTrackerPro format
+const generateTicketId = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const counter = Math.floor(Math.random() * 1000) + 1;
+  return `TKT-${year}-${month}-${String(counter).padStart(3, '0')}`;
+};
+
+// Calculate due date based on SLA
+const calculateDueDate = (slaHours = 24) => {
+  return new Date(Date.now() + slaHours * 60 * 60 * 1000).toISOString();
+};
+
+// CallTrackerPro ticket database (matching mobile app schema)
 const ticketDatabase = {
   ticket1: {
-    id: 'ticket1',
     _id: 'ticket1',
-    title: 'Customer Login Issues',
-    description: 'Customer experiencing authentication failures when trying to log into their dashboard. Multiple failed attempts reported.',
-    status: 'open',
-    priority: 'medium',
-    category: 'technical-support',
+    ticketId: 'TKT-2024-08-001',
     
-    // Customer information
-    customerName: 'John Doe',
-    customerEmail: 'john.doe@example.com',
-    customerPhone: '+1 (555) 123-4567',
-    
-    // Assignment
-    assignedTo: {
-      id: 'agent_456',
-      name: 'Sarah Wilson',
-      email: 'sarah.wilson@company.com'
+    // Contact Information (from CallTrackerPro app)
+    phoneNumber: '+1 (555) 123-4567',
+    contactName: 'John Doe',
+    alternatePhones: ['+1 (555) 123-4568'],
+    email: 'john.doe@example.com',
+    company: 'Acme Corp',
+    jobTitle: 'IT Manager',
+    location: {
+      city: 'New York',
+      state: 'NY',
+      country: 'USA',
+      address: '123 Business Ave'
     },
     
-    // Timestamps
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 1800000).toISOString(),
+    // Call Details (linked from mobile app)
+    callLogId: 'call_log_001',
+    callDate: new Date(Date.now() - 3600000).toISOString(),
+    callDuration: 323, // seconds
+    callType: 'incoming',
+    callRecordingUrl: null,
+    callQuality: 4,
+    
+    // Lead Qualification (CallTrackerPro CRM features)
+    leadSource: 'cold_call',
+    leadStatus: 'contacted',
+    priority: 'medium',
+    interestLevel: 'warm',
+    budgetRange: '$10k-$25k',
+    timeline: 'Q1 2024',
+    productsInterested: ['CRM Software', 'Call Tracking'],
+    
+    // Ticket Lifecycle
+    status: 'open',
+    category: 'sales',
+    source: 'mobile_app',
+    
+    // SLA & Escalation (CallTrackerPro business logic)
+    slaStatus: 'on_track',
     dueDate: new Date(Date.now() + 86400000 * 3).toISOString(),
-    lastActivity: new Date(Date.now() - 1800000).toISOString(),
-    
-    // Metadata
-    source: 'email',
-    tags: ['login-issue', 'authentication', 'urgent'],
-    estimatedHours: 2,
-    actualHours: 0.5,
-    
-    // Activity notes
-    notes: [
-      {
-        id: 'note_1',
-        content: 'Initial ticket created from customer email',
-        author: 'System',
-        authorId: 'system',
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-        type: 'system'
-      },
-      {
-        id: 'note_2', 
-        content: 'Assigned to Sarah Wilson for investigation',
-        author: 'System',
-        authorId: 'system',
-        createdAt: new Date(Date.now() - 3000000).toISOString(),
-        type: 'assignment'
-      },
-      {
-        id: 'note_3',
-        content: 'Contacted customer to gather more details about the authentication issue',
-        author: 'Sarah Wilson',
-        authorId: 'agent_456',
-        createdAt: new Date(Date.now() - 1800000).toISOString(),
-        type: 'note'
-      }
-    ],
-    
-    // Attachments
-    attachments: [
-      {
-        id: 'attach_1',
-        name: 'screenshot.png',
-        originalName: 'login_error_screenshot.png',
-        type: 'image/png',
-        size: '245KB',
-        url: '/api/attachments/attach_1'
-      }
-    ],
-    
-    // Resolution tracking
-    resolution: null,
-    resolutionDate: null,
+    escalatedAt: null,
+    escalatedTo: null,
     resolutionTime: null,
     
-    // Related tickets
-    relatedTickets: []
+    // Assignment (from CallTrackerPro app)
+    assignedTo: 'agent_456',
+    assignedTeam: 'sales_team_001',
+    previousAssignee: null,
+    assignedAt: new Date(Date.now() - 3600000).toISOString(),
+    
+    // Customer Satisfaction
+    satisfactionRating: null,
+    satisfactionFeedback: null,
+    satisfactionDate: null,
+    
+    // CRM Pipeline (CallTrackerPro pipeline features)
+    stage: 'qualified',
+    nextFollowUp: new Date(Date.now() + 86400000 * 2).toISOString(),
+    followUpActions: ['Send proposal', 'Schedule demo'],
+    dealValue: 15000.00,
+    conversionProbability: 75,
+    
+    // Notes & Tracking (CallTrackerPro app format)
+    agentNotes: [
+      {
+        _id: 'note_1',
+        note: 'Customer called regarding login issues. Provided initial troubleshooting steps.',
+        author: 'agent_456',
+        authorName: 'Sarah Wilson',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        isPrivate: false,
+        noteType: 'agent'
+      },
+      {
+        _id: 'note_2',
+        note: 'Escalated to technical team for further investigation.',
+        author: 'agent_456', 
+        authorName: 'Sarah Wilson',
+        timestamp: new Date(Date.now() - 1800000).toISOString(),
+        isPrivate: false,
+        noteType: 'agent'
+      }
+    ],
+    clientNotes: [
+      {
+        _id: 'note_3',
+        note: 'Customer confirmed they can now access the dashboard after password reset.',
+        author: 'agent_456',
+        authorName: 'Sarah Wilson',
+        timestamp: new Date(Date.now() - 900000).toISOString(),
+        isPrivate: false,
+        noteType: 'client'
+      }
+    ],
+    tags: ['login-issue', 'authentication', 'resolved'],
+    customFields: {
+      'urgency_level': 'high',
+      'customer_tier': 'premium'
+    },
+    
+    // Multi-tenant (CallTrackerPro organization structure)
+    organizationId: 'org_12345',
+    teamId: 'sales_team_001',
+    
+    // Audit Trail (CallTrackerPro tracking)
+    createdBy: 'agent_456',
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    updatedBy: 'agent_456',
+    updatedAt: new Date(Date.now() - 1800000).toISOString(),
+    isActive: true,
+    ticketHistory: [
+      {
+        action: 'created',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        userId: 'agent_456',
+        details: 'Ticket auto-created from incoming call'
+      },
+      {
+        action: 'updated',
+        timestamp: new Date(Date.now() - 1800000).toISOString(), 
+        userId: 'agent_456',
+        details: 'Added customer information and initial notes'
+      }
+    ]
   },
   
   ticket2: {
@@ -492,6 +553,258 @@ const resolveTicket = (ticketId, data) => {
   return ticket;
 };
 
+// Call Log Database (CallTrackerPro format)
+const callLogDatabase = {
+  call_log_001: {
+    _id: 'call_log_001',
+    phoneNumber: '+1 (555) 123-4567',
+    contactName: 'John Doe',
+    company: 'Acme Corp',
+    callType: 'incoming',
+    duration: 323,
+    status: 'answered',
+    callQuality: 4,
+    organizationId: 'org_12345',
+    userId: 'agent_456',
+    teamId: 'sales_team_001',
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    ticketId: 'ticket1' // Linked ticket
+  },
+  call_log_002: {
+    _id: 'call_log_002', 
+    phoneNumber: '+1 (555) 987-6543',
+    contactName: 'Jane Smith',
+    company: 'Tech Solutions',
+    callType: 'outgoing',
+    duration: 180,
+    status: 'answered',
+    callQuality: 5,
+    organizationId: 'org_12345',
+    userId: 'agent_789',
+    teamId: 'support_team_001',
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+    ticketId: null // No ticket created
+  }
+};
+
+// CallTrackerPro Auto Ticket Creation from Call Logs
+const createCallLogWithTicket = async (data) => {
+  try {
+    // Create call log entry
+    const callLogId = generateId('call_log');
+    const now = new Date().toISOString();
+    
+    const callLog = {
+      _id: callLogId,
+      phoneNumber: data.phoneNumber,
+      contactName: data.contactName || "Unknown Contact",
+      company: data.company || "",
+      callType: data.callType || 'incoming',
+      duration: data.duration || 0,
+      status: data.status || 'answered',
+      callQuality: data.callQuality || 0,
+      organizationId: data.organizationId,
+      userId: data.userId,
+      teamId: data.teamId,
+      createdAt: now,
+      ticketId: null
+    };
+    
+    // Store call log
+    callLogDatabase[callLogId] = callLog;
+    
+    let ticket = null;
+    
+    // Auto-create ticket if requested (CallTrackerPro mobile app feature)
+    if (data.autoCreateTicket === true) {
+      const ticketId = generateId('ticket');
+      
+      ticket = {
+        _id: ticketId,
+        ticketId: generateTicketId(),
+        
+        // Contact Information from call
+        phoneNumber: data.phoneNumber,
+        contactName: data.contactName || "Unknown Contact",
+        alternatePhones: [],
+        email: "",
+        company: data.company || "",
+        jobTitle: "",
+        location: {
+          city: "",
+          state: "",
+          country: "",
+          address: ""
+        },
+        
+        // Call Details (link to call log)
+        callLogId: callLogId,
+        callDate: now,
+        callDuration: data.duration || 0,
+        callType: data.callType || 'incoming',
+        callRecordingUrl: null,
+        callQuality: data.callQuality || 0,
+        
+        // Intelligent Defaults (CallTrackerPro business logic)
+        leadSource: data.callType === 'incoming' ? 'cold_call' : 'outbound',
+        leadStatus: 'new',
+        priority: 'medium',
+        interestLevel: 'warm',
+        budgetRange: "",
+        timeline: "",
+        productsInterested: [],
+        
+        // Ticket Lifecycle
+        status: 'open',
+        category: data.teamId?.includes('sales') ? 'sales' : 'support',
+        source: 'mobile_app',
+        
+        // SLA Settings (based on organization config)
+        slaStatus: 'on_track',
+        dueDate: calculateDueDate(24), // 24 hour default SLA
+        escalatedAt: null,
+        escalatedTo: null,
+        resolutionTime: null,
+        
+        // Assignment (auto-assign to call receiver)
+        assignedTo: data.userId,
+        assignedTeam: data.teamId,
+        previousAssignee: null,
+        assignedAt: now,
+        
+        // Customer Satisfaction
+        satisfactionRating: null,
+        satisfactionFeedback: null,
+        satisfactionDate: null,
+        
+        // CRM Pipeline
+        stage: 'prospect',
+        nextFollowUp: new Date(Date.now() + 86400000 * 2).toISOString(), // 2 days
+        followUpActions: [],
+        dealValue: 0,
+        conversionProbability: 0,
+        
+        // Notes & Tracking
+        agentNotes: [{
+          _id: generateId('note'),
+          note: `Ticket auto-created from ${data.callType} call. Duration: ${data.duration}s`,
+          author: data.userId,
+          authorName: 'System Auto-Creation',
+          timestamp: now,
+          isPrivate: false,
+          noteType: 'system'
+        }],
+        clientNotes: [],
+        tags: ['auto-created', data.callType + '-call'],
+        customFields: {},
+        
+        // Multi-tenant
+        organizationId: data.organizationId,
+        teamId: data.teamId,
+        
+        // Audit Trail
+        createdBy: data.userId,
+        createdAt: now,
+        updatedBy: data.userId,
+        updatedAt: now,
+        isActive: true,
+        ticketHistory: [{
+          action: 'created',
+          timestamp: now,
+          userId: data.userId,
+          details: `Auto-created from ${data.callType} call to ${data.phoneNumber}`
+        }]
+      };
+      
+      // Store ticket
+      ticketDatabase[ticketId] = ticket;
+      
+      // Link ticket to call log
+      callLogDatabase[callLogId].ticketId = ticketId;
+      
+      // Send real-time notifications (mock implementation)
+      console.log('🔔 SSE Event: TICKET_CREATED', {
+        type: 'TICKET_CREATED',
+        ticketId: ticketId,
+        organizationId: data.organizationId,
+        teamId: data.teamId
+      });
+    }
+    
+    return {
+      success: true,
+      message: ticket ? 'Call logged and ticket created successfully' : 'Call logged successfully',
+      data: {
+        callLog: callLog,
+        ticket: ticket
+      },
+      realTimeUpdates: {
+        sseTriggered: ticket ? true : false,
+        webSocketTriggered: ticket ? true : false,
+        analyticsUpdated: true
+      }
+    };
+    
+  } catch (error) {
+    console.error('❌ Call log creation failed:', error);
+    return {
+      success: false,
+      error: 'Call log creation failed',
+      details: error.message
+    };
+  }
+};
+
+// Get call logs with filtering
+const getCallLogs = (query = {}) => {
+  const {
+    limit = 20,
+    offset = 0,
+    organizationId,
+    teamId,
+    userId,
+    callType,
+    dateFrom,
+    dateTo
+  } = query;
+  
+  let callLogs = Object.values(callLogDatabase);
+  
+  // Apply filters (CallTrackerPro app filters)
+  if (organizationId) {
+    callLogs = callLogs.filter(c => c.organizationId === organizationId);
+  }
+  if (teamId) {
+    callLogs = callLogs.filter(c => c.teamId === teamId);
+  }
+  if (userId) {
+    callLogs = callLogs.filter(c => c.userId === userId);
+  }
+  if (callType) {
+    callLogs = callLogs.filter(c => c.callType === callType);
+  }
+  if (dateFrom) {
+    const fromDate = new Date(dateFrom);
+    callLogs = callLogs.filter(c => new Date(c.createdAt) >= fromDate);
+  }
+  if (dateTo) {
+    const toDate = new Date(dateTo);
+    callLogs = callLogs.filter(c => new Date(c.createdAt) <= toDate);
+  }
+  
+  // Sort by most recent first
+  callLogs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  
+  // Pagination
+  const total = callLogs.length;
+  const paginatedLogs = callLogs.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+  
+  return {
+    data: paginatedLogs,
+    total: total
+  };
+};
+
 // Main handler function
 module.exports = async (req, res) => {
   try {
@@ -821,6 +1134,61 @@ module.exports = async (req, res) => {
         data: result,
         message: 'Ticket resolved successfully'
       });
+    }
+
+    // CallTrackerPro Mobile App Integration - Call Logs with Auto Ticket Creation
+    if (method === 'POST' && pathname === '/api/call-logs') {
+      const body = await parseBody(req);
+      const callLogResult = await createCallLogWithTicket(body);
+      
+      if (!callLogResult.success) {
+        return jsonResponse(res, 500, callLogResult);
+      }
+      
+      return jsonResponse(res, 201, callLogResult);
+    }
+
+    // Get call logs
+    if (method === 'GET' && pathname === '/api/call-logs') {
+      const query = parsedUrl.query;
+      const callLogs = getCallLogs(query);
+      
+      return jsonResponse(res, 200, {
+        success: true,
+        data: callLogs.data,
+        total: callLogs.total,
+        message: 'Call logs retrieved successfully'
+      });
+    }
+
+    // Server-Sent Events for real-time ticket updates
+    if (method === 'GET' && pathname === '/api/tickets/stream') {
+      const query = parsedUrl.query;
+      
+      // Set up SSE headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Authorization'
+      });
+      
+      // Send initial connection message
+      res.write('data: {"type":"connected","message":"SSE connected successfully"}\n\n');
+      
+      // Keep connection alive with heartbeat
+      const heartbeat = setInterval(() => {
+        res.write('data: {"type":"heartbeat","timestamp":"' + new Date().toISOString() + '"}\n\n');
+      }, 30000);
+      
+      // Clean up on client disconnect
+      req.on('close', () => {
+        clearInterval(heartbeat);
+        console.log('SSE client disconnected');
+      });
+      
+      return; // Don't call jsonResponse for SSE
     }
 
     if (method === 'GET' && pathname === '/api/notifications/unread') {
