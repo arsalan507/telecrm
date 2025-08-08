@@ -121,7 +121,7 @@ app.use('/api/users', superAdminRoute);
 app.get('/', (req, res) => {
   res.json({ 
     message: 'CallTracker Pro - Super Admin Backend',
-    version: '2.0.0',
+    version: '2.0.1-auth-fixed',
     timestamp: new Date().toISOString(),
     endpoints: {
       superAdmin: [
