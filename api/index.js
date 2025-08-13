@@ -1982,6 +1982,203 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Super Admin Endpoints
+    if (method === 'GET' && pathname === '/api/super-admin/organizations') {
+      return jsonResponse(res, 200, {
+        success: true,
+        data: [
+          {
+            id: 'demo-org-id',
+            name: 'Demo Organization',
+            plan: 'enterprise',
+            users: 5,
+            status: 'active',
+            createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+            isActive: true,
+            subscription: {
+              plan: 'enterprise',
+              status: 'active',
+              billingCycle: 'monthly'
+            },
+            settings: {
+              callLogging: true,
+              realTimeUpdates: true,
+              analytics: true
+            }
+          },
+          {
+            id: 'org_12345',
+            name: 'CallTracker Pro Organization',
+            plan: 'pro',
+            users: 12,
+            status: 'active',
+            createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+            isActive: true,
+            subscription: {
+              plan: 'pro',
+              status: 'active',
+              billingCycle: 'yearly'
+            },
+            settings: {
+              callLogging: true,
+              realTimeUpdates: true,
+              analytics: false
+            }
+          }
+        ],
+        total: 2,
+        message: 'All organizations retrieved successfully'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/super-admin/users') {
+      return jsonResponse(res, 200, {
+        success: true,
+        data: [
+          {
+            id: 'demo_super_admin',
+            firstName: 'Super',
+            lastName: 'Admin',
+            email: 'admin@calltrackerpro.com',
+            role: 'super_admin',
+            organizationId: 'demo-org-id',
+            organizationName: 'Demo Organization',
+            isActive: true,
+            lastLogin: new Date(Date.now() - 3600000).toISOString(),
+            createdAt: new Date(Date.now() - 86400000 * 30).toISOString()
+          },
+          {
+            id: 'demo_manager',
+            firstName: 'Manager',
+            lastName: 'User',
+            email: 'manager@demo.com',
+            role: 'manager',
+            organizationId: 'demo-org-id',
+            organizationName: 'Demo Organization',
+            isActive: true,
+            lastLogin: new Date(Date.now() - 7200000).toISOString(),
+            createdAt: new Date(Date.now() - 86400000 * 25).toISOString()
+          },
+          {
+            id: 'demo_agent',
+            firstName: 'Agent',
+            lastName: 'User',
+            email: 'agent@demo.com',
+            role: 'agent',
+            organizationId: 'demo-org-id',
+            organizationName: 'Demo Organization',
+            isActive: true,
+            lastLogin: new Date(Date.now() - 1800000).toISOString(),
+            createdAt: new Date(Date.now() - 86400000 * 20).toISOString()
+          },
+          {
+            id: 'org_admin_001',
+            firstName: 'John',
+            lastName: 'Smith',
+            email: 'john@calltrackerpro.com',
+            role: 'org_admin',
+            organizationId: 'org_12345',
+            organizationName: 'CallTracker Pro Organization',
+            isActive: true,
+            lastLogin: new Date(Date.now() - 14400000).toISOString(),
+            createdAt: new Date(Date.now() - 86400000 * 50).toISOString()
+          }
+        ],
+        total: 4,
+        message: 'All users retrieved successfully'
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/super-admin/stats') {
+      return jsonResponse(res, 200, {
+        success: true,
+        data: {
+          platform: {
+            totalOrganizations: 2,
+            activeOrganizations: 2,
+            totalUsers: 4,
+            activeUsers: 4,
+            totalCallLogs: 1250,
+            totalTickets: 450
+          },
+          performance: {
+            averageResponseTime: '145ms',
+            uptime: '99.9%',
+            errorRate: '0.1%',
+            throughput: '2.5K requests/hour'
+          },
+          growth: {
+            newOrganizationsThisMonth: 1,
+            newUsersThisMonth: 2,
+            callsGrowth: '+15%',
+            ticketsGrowth: '+22%'
+          },
+          revenue: {
+            monthlyRecurringRevenue: 5980,
+            annualRecurringRevenue: 71760,
+            averageRevenuePerUser: 149.50,
+            churnRate: '2.5%'
+          }
+        },
+        message: 'Platform statistics retrieved successfully'
+      });
+    }
+
+    if (method === 'POST' && pathname === '/api/super-admin/organizations') {
+      const body = await parseBody(req);
+      const { name, plan, adminEmail, adminName } = body;
+
+      const newOrgId = 'org_' + Date.now();
+      const newUserId = 'user_' + Date.now();
+
+      return jsonResponse(res, 201, {
+        success: true,
+        message: 'Organization created successfully',
+        data: {
+          organization: {
+            id: newOrgId,
+            name: name || 'New Organization',
+            plan: plan || 'pro',
+            users: 1,
+            status: 'active',
+            createdAt: new Date().toISOString(),
+            isActive: true
+          },
+          adminUser: {
+            id: newUserId,
+            email: adminEmail,
+            name: adminName || 'Organization Admin',
+            role: 'org_admin',
+            organizationId: newOrgId,
+            isActive: true,
+            createdAt: new Date().toISOString()
+          }
+        }
+      });
+    }
+
+    if (method === 'POST' && pathname === '/api/super-admin/users') {
+      const body = await parseBody(req);
+      const { email, firstName, lastName, role, organizationId } = body;
+
+      const newUserId = 'user_' + Date.now();
+
+      return jsonResponse(res, 201, {
+        success: true,
+        message: 'User created successfully',
+        data: {
+          id: newUserId,
+          email,
+          firstName: firstName || 'New',
+          lastName: lastName || 'User',
+          role: role || 'agent',
+          organizationId,
+          isActive: true,
+          createdAt: new Date().toISOString()
+        }
+      });
+    }
+
     // 404 for unmatched routes
     return jsonResponse(res, 404, {
       success: false,
