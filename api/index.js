@@ -3,6 +3,9 @@ require('dotenv').config();
 const url = require('url');
 const jwt = require('jsonwebtoken');
 
+// In-memory storage for initial users (in production, use database)
+const initialUsers = {};
+
 // CORS headers
 const setCORSHeaders = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1399,17 +1402,87 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Backend Setup Endpoints - For Initial User Creation
+    if (method === 'POST' && pathname === '/api/setup/initial-user') {
+      const body = await parseBody(req);
+      const { email, password, firstName, lastName, organizationName } = body;
+
+      if (!email || !password) {
+        return jsonResponse(res, 400, {
+          success: false,
+          message: 'Email and password are required'
+        });
+      }
+
+      // Create initial super admin user
+      const userId = 'user_' + Date.now();
+      const orgId = 'org_' + Date.now();
+      
+      const newUser = {
+        id: userId,
+        email,
+        firstName: firstName || 'Admin',
+        lastName: lastName || 'User',
+        role: 'super_admin',
+        organizationId: orgId,
+        organizationName: organizationName || 'CallTracker Pro Organization',
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+
+      // Store in memory (in production, this would go to database)
+      initialUsers[email] = { ...newUser, password };
+
+      return jsonResponse(res, 201, {
+        success: true,
+        message: 'Initial user created successfully',
+        data: {
+          user: newUser,
+          organization: {
+            id: orgId,
+            name: organizationName || 'CallTracker Pro Organization',
+            plan: 'enterprise',
+            users: 1,
+            isActive: true
+          }
+        }
+      });
+    }
+
+    if (method === 'GET' && pathname === '/api/setup/test-connection') {
+      return jsonResponse(res, 200, {
+        success: true,
+        message: 'Backend connection successful',
+        data: {
+          timestamp: new Date().toISOString(),
+          environment: process.env.NODE_ENV || 'development',
+          version: '2.0.0',
+          features: ['call-logs', 'tickets', 'real-time-updates', 'analytics'],
+          endpoints: [
+            'POST /api/auth/login',
+            'POST /api/setup/initial-user',
+            'GET /api/setup/test-connection',
+            'GET /api/call-logs',
+            'GET /api/tickets',
+            'GET /api/organizations'
+          ]
+        }
+      });
+    }
+
     if (method === 'POST' && pathname === '/api/auth/login') {
       const body = await parseBody(req);
       const { email, password } = body;
 
-      if (email === 'anas@anas.com' && password) {
+      // Check initial users first
+      if (initialUsers[email] && initialUsers[email].password === password) {
+        const user = initialUsers[email];
         const token = jwt.sign(
           {
-            userId: 'test-user-id',
-            email: email,
-            role: 'org_admin',
-            organizationId: 'test-org-id'
+            userId: user.id,
+            email: user.email,
+            role: user.role,
+            organizationId: user.organizationId
           },
           process.env.JWT_SECRET || 'fallback-secret',
           { expiresIn: '24h' }
@@ -1419,17 +1492,63 @@ module.exports = async (req, res) => {
           success: true,
           token,
           user: {
-            email,
-            role: 'org_admin',
-            organizationId: 'test-org-id'
-          }
-        });
-      } else {
-        return jsonResponse(res, 401, {
-          success: false,
-          message: 'Invalid credentials'
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+            organizationId: user.organizationId,
+            organizationName: user.organizationName
+          },
+          message: 'Login successful'
         });
       }
+
+      // Fallback to demo credentials
+      const demoCredentials = [
+        { email: 'admin@calltrackerpro.com', password: 'Admin@123', role: 'super_admin' },
+        { email: 'anas@anas.com', password: 'password', role: 'org_admin' },
+        { email: 'manager@demo.com', password: 'Manager@123', role: 'manager' },
+        { email: 'agent@demo.com', password: 'Agent@123', role: 'agent' }
+      ];
+
+      const demoUser = demoCredentials.find(cred => cred.email === email && cred.password === password);
+      
+      if (demoUser) {
+        const token = jwt.sign(
+          {
+            userId: 'demo_' + demoUser.role,
+            email: demoUser.email,
+            role: demoUser.role,
+            organizationId: 'demo-org-id'
+          },
+          process.env.JWT_SECRET || 'fallback-secret',
+          { expiresIn: '24h' }
+        );
+
+        return jsonResponse(res, 200, {
+          success: true,
+          token,
+          user: {
+            email: demoUser.email,
+            role: demoUser.role,
+            organizationId: 'demo-org-id',
+            firstName: demoUser.role.charAt(0).toUpperCase() + demoUser.role.slice(1),
+            lastName: 'User'
+          },
+          message: 'Demo login successful'
+        });
+      }
+
+      return jsonResponse(res, 401, {
+        success: false,
+        message: 'Invalid credentials. Try demo credentials: admin@calltrackerpro.com / Admin@123 or create an initial user using the setup endpoint.',
+        availableCredentials: [
+          'admin@calltrackerpro.com / Admin@123 (Super Admin)',
+          'manager@demo.com / Manager@123 (Manager)',
+          'agent@demo.com / Agent@123 (Agent)'
+        ]
+      });
     }
 
     if (method === 'GET' && pathname.startsWith('/api/organizations/') && pathname.endsWith('/users')) {
