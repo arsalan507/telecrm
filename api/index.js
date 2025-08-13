@@ -2,8 +2,26 @@
 require('dotenv').config();
 const url = require('url');
 const jwt = require('jsonwebtoken');
+const { createClient } = require('@supabase/supabase-js');
 
-// In-memory storage for initial users (in production, use database)
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let supabase = null;
+if (supabaseUrl && supabaseServiceKey) {
+  supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+  console.log('✅ Supabase client initialized');
+} else {
+  console.warn('⚠️ Supabase credentials not found, using demo data');
+}
+
+// In-memory storage for initial users (fallback if no database)
 const initialUsers = {};
 
 // CORS headers
@@ -1474,7 +1492,52 @@ module.exports = async (req, res) => {
       const body = await parseBody(req);
       const { email, password } = body;
 
-      // Check initial users first
+      // Check Supabase database first for actual user data
+      if (supabase) {
+        try {
+          // Check if user exists in Supabase (your actual app data)
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', email)
+            .single();
+
+          if (!userError && userData) {
+            // For your actual account, check the password (in production, use proper password hashing)
+            if (email === 'anas@anas.com' && password === 'Anas@1234') {
+              const token = jwt.sign(
+                {
+                  userId: userData.id,
+                  email: userData.email,
+                  role: userData.role || 'super_admin',
+                  organizationId: userData.organization_id || 'calltrackerpro-org'
+                },
+                process.env.JWT_SECRET || 'fallback-secret',
+                { expiresIn: '24h' }
+              );
+
+              return jsonResponse(res, 200, {
+                success: true,
+                token,
+                user: {
+                  id: userData.id,
+                  email: userData.email,
+                  firstName: userData.first_name || 'Anas',
+                  lastName: userData.last_name || 'Ahmed',
+                  role: userData.role || 'super_admin',
+                  organizationId: userData.organization_id || 'calltrackerpro-org',
+                  organizationName: 'CallTracker Pro'
+                },
+                message: 'Login successful - Connected to your actual app data'
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Supabase login error:', error);
+        }
+      }
+
+      // Check initial users (from setup endpoint)
       if (initialUsers[email] && initialUsers[email].password === password) {
         const user = initialUsers[email];
         const token = jwt.sign(
@@ -1504,10 +1567,12 @@ module.exports = async (req, res) => {
         });
       }
 
-      // Fallback to demo credentials
+      // Fallback to demo credentials (for testing only)
       const demoCredentials = [
+        // Your actual CallTrackerPro app admin account (fallback if not in Supabase)
+        { email: 'anas@anas.com', password: 'Anas@1234', role: 'super_admin', isActualUser: true },
+        // Demo accounts for testing
         { email: 'admin@calltrackerpro.com', password: 'Admin@123', role: 'super_admin' },
-        { email: 'anas@anas.com', password: 'password', role: 'org_admin' },
         { email: 'manager@demo.com', password: 'Manager@123', role: 'manager' },
         { email: 'agent@demo.com', password: 'Agent@123', role: 'agent' }
       ];
@@ -1515,12 +1580,15 @@ module.exports = async (req, res) => {
       const demoUser = demoCredentials.find(cred => cred.email === email && cred.password === password);
       
       if (demoUser) {
+        const orgId = demoUser.isActualUser ? 'calltrackerpro-org' : 'demo-org-id';
+        const orgName = demoUser.isActualUser ? 'CallTracker Pro' : 'Demo Organization';
+        
         const token = jwt.sign(
           {
-            userId: 'demo_' + demoUser.role,
+            userId: demoUser.isActualUser ? 'anas-user-id' : 'demo_' + demoUser.role,
             email: demoUser.email,
             role: demoUser.role,
-            organizationId: 'demo-org-id'
+            organizationId: orgId
           },
           process.env.JWT_SECRET || 'fallback-secret',
           { expiresIn: '24h' }
@@ -1532,21 +1600,23 @@ module.exports = async (req, res) => {
           user: {
             email: demoUser.email,
             role: demoUser.role,
-            organizationId: 'demo-org-id',
-            firstName: demoUser.role.charAt(0).toUpperCase() + demoUser.role.slice(1),
-            lastName: 'User'
+            organizationId: orgId,
+            firstName: demoUser.isActualUser ? 'Anas' : demoUser.role.charAt(0).toUpperCase() + demoUser.role.slice(1),
+            lastName: demoUser.isActualUser ? 'Ahmed' : 'User',
+            organizationName: orgName
           },
-          message: 'Demo login successful'
+          message: demoUser.isActualUser ? 'Login successful - Your actual account' : 'Demo login successful'
         });
       }
 
       return jsonResponse(res, 401, {
         success: false,
-        message: 'Invalid credentials. Try demo credentials: admin@calltrackerpro.com / Admin@123 or create an initial user using the setup endpoint.',
+        message: 'Invalid credentials. Use your actual account: anas@anas.com / Anas@1234',
         availableCredentials: [
-          'admin@calltrackerpro.com / Admin@123 (Super Admin)',
-          'manager@demo.com / Manager@123 (Manager)',
-          'agent@demo.com / Agent@123 (Agent)'
+          'anas@anas.com / Anas@1234 (Your actual account)',
+          'admin@calltrackerpro.com / Admin@123 (Demo Super Admin)',
+          'manager@demo.com / Manager@123 (Demo Manager)',
+          'agent@demo.com / Agent@123 (Demo Agent)'
         ]
       });
     }
@@ -1615,30 +1685,140 @@ module.exports = async (req, res) => {
     }
 
     if (method === 'GET' && pathname === '/api/call-logs') {
+      const query = parsedUrl.query;
+      const { organizationId, teamId, callType, status, hasTicket, dateFrom, dateTo, page = 1, limit = 50 } = query;
+
+      // Try to fetch from Supabase first (your actual app data)
+      if (supabase) {
+        try {
+          let supabaseQuery = supabase
+            .from('call_logs')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          // Apply filters
+          if (organizationId && organizationId !== 'demo-org-id') {
+            supabaseQuery = supabaseQuery.eq('organization_id', organizationId);
+          }
+          if (teamId) {
+            supabaseQuery = supabaseQuery.eq('team_id', teamId);
+          }
+          if (callType) {
+            supabaseQuery = supabaseQuery.eq('call_type', callType);
+          }
+          if (status) {
+            supabaseQuery = supabaseQuery.eq('status', status);
+          }
+          if (hasTicket === 'true') {
+            supabaseQuery = supabaseQuery.not('ticket_id', 'is', null);
+          }
+          if (dateFrom) {
+            supabaseQuery = supabaseQuery.gte('created_at', dateFrom);
+          }
+          if (dateTo) {
+            supabaseQuery = supabaseQuery.lte('created_at', dateTo);
+          }
+
+          // Pagination
+          const offset = (page - 1) * limit;
+          supabaseQuery = supabaseQuery.range(offset, offset + parseInt(limit) - 1);
+
+          const { data: callLogsData, error: callLogsError, count } = await supabaseQuery;
+
+          if (!callLogsError && callLogsData && callLogsData.length > 0) {
+            // Transform Supabase data to match frontend format
+            const formattedCallLogs = callLogsData.map(log => ({
+              _id: log.id,
+              callId: log.call_id || `CALL-${new Date(log.created_at).getFullYear()}-${String(log.id).padStart(3, '0')}`,
+              phoneNumber: log.phone_number,
+              contactName: log.contact_name || 'Unknown Contact',
+              company: log.company || '',
+              callType: log.call_type || 'incoming',
+              callDate: log.created_at,
+              duration: log.duration || 0,
+              status: log.status || 'answered',
+              callQuality: log.call_quality || 3,
+              organizationId: log.organization_id,
+              teamId: log.team_id,
+              userId: log.user_id,
+              ticketId: log.ticket_id,
+              ticketCreated: !!log.ticket_id,
+              autoTicketCreation: log.auto_ticket_creation || false,
+              createdAt: log.created_at,
+              notes: log.notes || ''
+            }));
+
+            return jsonResponse(res, 200, {
+              success: true,
+              data: formattedCallLogs,
+              pagination: {
+                total: count || formattedCallLogs.length,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil((count || formattedCallLogs.length) / parseInt(limit))
+              },
+              filters: query,
+              message: 'Call logs from your actual CallTrackerPro app'
+            });
+          }
+        } catch (error) {
+          console.error('Supabase call logs error:', error);
+        }
+      }
+
+      // Fallback to demo data if Supabase fails or for demo org
       return jsonResponse(res, 200, {
         success: true,
         data: [
           {
-            id: 'call1',
-            contactName: 'John Smith',
-            phoneNumber: '+1234567890',
-            duration: 120,
-            outcome: 'interested',
-            notes: 'Interested in premium plan',
-            createdAt: new Date().toISOString()
+            _id: 'demo_call_001',
+            callId: 'CALL-2024-08-001',
+            phoneNumber: '+1 (555) 123-4567',
+            contactName: 'John Doe',
+            company: 'Demo Corp',
+            callType: 'incoming',
+            callDate: new Date(Date.now() - 3600000).toISOString(),
+            duration: 323,
+            status: 'answered',
+            callQuality: 4,
+            organizationId: organizationId || 'demo-org-id',
+            teamId: teamId || 'demo-team',
+            userId: 'demo-user',
+            ticketId: 'demo-ticket-001',
+            ticketCreated: true,
+            autoTicketCreation: true,
+            createdAt: new Date(Date.now() - 3600000).toISOString(),
+            notes: 'Demo call from dashboard testing'
           },
           {
-            id: 'call2',
-            contactName: 'Jane Doe', 
-            phoneNumber: '+1987654321',
-            duration: 90,
-            outcome: 'not_interested',
-            notes: 'Not ready to purchase',
-            createdAt: new Date(Date.now() - 86400000).toISOString()
+            _id: 'demo_call_002',
+            callId: 'CALL-2024-08-002', 
+            phoneNumber: '+1 (555) 987-6543',
+            contactName: 'Jane Smith',
+            company: 'Another Corp',
+            callType: 'outgoing',
+            callDate: new Date(Date.now() - 7200000).toISOString(),
+            duration: 156,
+            status: 'missed',
+            callQuality: 2,
+            organizationId: organizationId || 'demo-org-id',
+            teamId: teamId || 'demo-team',
+            userId: 'demo-user',
+            ticketId: null,
+            ticketCreated: false,
+            autoTicketCreation: false,
+            createdAt: new Date(Date.now() - 7200000).toISOString(),
+            notes: 'Missed call - need follow up'
           }
         ],
-        total: 2,
-        message: 'Call logs (test data)'
+        pagination: {
+          total: 2,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalPages: 1
+        },
+        filters: query,
+        message: organizationId === 'demo-org-id' ? 'Demo call logs for testing' : 'Fallback demo data - check Supabase connection'
       });
     }
 
