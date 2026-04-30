@@ -28,3 +28,18 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Backup and temp files
+*.backup
+*.bak
+deployment-trigger.txt
+
+# Local test scripts
+simple-test.js
+test-deployment.js
+test-interface.html
+test-jwt.js
+test-mongo.js
+verify-token.js
+create-test-user.js
+create-user-via-api.js
