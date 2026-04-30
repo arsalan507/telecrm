@@ -85,6 +85,10 @@ app.options('*', (req, res) => {
   res.status(204).end();
 });
 
+// Rate limiting
+const { authLimiter, demoRequestLimiter, superAdminLimiter, generalLimiter } = require('./middleware/rateLimiter');
+app.use('/api/', generalLimiter);
+
 // Import all route modules
 const superAdminRoute = require('./routes/superAdmin');
 const authRoutes = require('./routes/auth');
@@ -98,9 +102,9 @@ const demoRequestRoutes = require('./routes/demoRequestsSimplified');
 
 // Mount all routes
 // Switch to Supabase super-admin routes
-app.use('/api/super-admin', require('./routes/supabaseSuperAdmin'));
+app.use('/api/super-admin', superAdminLimiter, require('./routes/supabaseSuperAdmin'));
 // Switch to Supabase authentication
-app.use('/api/auth', require('./routes/supabaseAuth'));
+app.use('/api/auth', authLimiter, require('./routes/supabaseAuth'));
 // Switch to Supabase-based routes
 app.use('/api/tickets', require('./routes/supabaseTickets'));
 app.use('/api/call-logs', require('./routes/supabaseCallLogs'));
@@ -112,7 +116,7 @@ app.use('/api/organizations', require('./routes/supabaseOrganizations'));
 app.use('/api/orgs-supabase', require('./routes/supabaseOrganizations'));
 app.use('/api/contacts', contactRoutes);
 app.use('/api/invitations', invitationRoutes);
-app.use('/api/demo-requests', demoRequestRoutes);
+app.use('/api/demo-requests', demoRequestLimiter, demoRequestRoutes);
 
 // User management routes - direct proxy to super-admin endpoints
 app.use('/api/users', superAdminRoute);
